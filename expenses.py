@@ -41,6 +41,51 @@ def delete_expense(expense_id):
         cursor.close()
         connection.close()
 
+def get_spending_by_category():
+    connection = get_connection()
+    cursor = connection.cursor()
+    try:
+        cursor.execute('SELECT category, sum(amount) AS total_amount FROM expenses GROUP BY category')
+        result = cursor.fetchall()
+    except Exception as e:
+        connection.rollback()
+        print(f'Failed to categorize due to: {e}')
+        return []
+    finally:
+        cursor.close()
+        connection.close()
+    return result
+
+def get_total_spending():
+    connection = get_connection()
+    cursor = connection.cursor()
+    try:
+        cursor.execute('SELECT SUM(amount) AS total_spending FROM expenses')
+        result = cursor.fetchone()
+    except Exception as e:
+        connection.rollback()
+        print(f"Failed to display expense: {e}")
+        return []
+    finally:
+        cursor.close()
+        connection.close()
+    return result
+
+def get_spending_over_time():
+    connection = get_connection()
+    cursor = connection.cursor()
+    try:
+        cursor.execute('SELECT date, SUM(amount) AS daily_total FROM expenses GROUP BY date ORDER BY date ASC;')
+        result = cursor.fetchall()
+    except Exception as e:
+        connection.rollback()
+        print(f"Failed to display expense: {e}")
+        return []
+    finally:
+        cursor.close()
+        connection.close()
+    return result
+
 def get_expenses():
     connection = get_connection()
     cursor = connection.cursor()
@@ -50,6 +95,7 @@ def get_expenses():
     except Exception as e:
         connection.rollback()
         print(f"Failed to display expense: {e}")
+        return []
     finally:
         cursor.close()
         connection.close()
