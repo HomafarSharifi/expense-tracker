@@ -16,13 +16,13 @@ def get_valid_amount():
 
 def get_valid_date():
     while True:
-            try:
-                date = input("Enter the date in (YYYY-MM-DD) format: ")
-                datetime.strptime(date, "%Y-%m-%d")
-                return date
-            except ValueError:
-                print("Please enter the valid date.")
-                continue
+        try:
+            date_text = input("Enter the date in (YYYY-MM-DD) format: ")
+            datetime.strptime(date_text, "%Y-%m-%d")
+            return date_text
+        except ValueError:
+            print("Invalid date. Please use YYYY-MM-DD")
+            continue
 
 while True:
     try:
@@ -46,7 +46,7 @@ while True:
 
     if choice == 1:
         amount = get_valid_amount()
-        date = input("Enter date (YYYY-MM-DD): ")
+        date = get_valid_date()
         reason = input("Enter reason: ")
         category = input("Enter category: ")
         add_expense(amount, date, reason, category)
@@ -55,7 +55,7 @@ while True:
         print(expenses)
     elif choice == 3:
         amount = get_valid_amount()
-        date = input("Enter date (YYYY-MM-DD): ")
+        date = get_valid_date()
         reason = input("Enter reason: ")
         category = input("Enter category: ")
         id_expense = input("In which ID do you wanna make change: ")
@@ -68,9 +68,13 @@ while True:
     elif choice == 6:
         print(get_total_spending())
     elif choice == 7:
-        a = input('Enter the first date: ')
-        b = input('Enter the end date: ')
-        plot_spending_by_date_range(a, b)
+        start = get_valid_date()
+        end = get_valid_date()
+        if start > end:
+            print("Start date must not be after end date.")
+            continue
+        else:
+            plot_spending_by_date_range(start, end)
     elif choice == 8:
         plot_spending_over_time()
     elif choice == 9:
