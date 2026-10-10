@@ -24,6 +24,15 @@ def get_valid_date():
             print("Invalid date. Please use YYYY-MM-DD")
             continue
 
+def get_valid_id(display):
+    while True:
+        try:
+            expense_id = int(input(display))
+            return expense_id
+        except ValueError:
+            print("Invalid ID, plz try again")
+            continue
+
 while True:
     try:
         choice = int(input(
@@ -58,10 +67,10 @@ while True:
         date = get_valid_date()
         reason = input("Enter reason: ")
         category = input("Enter category: ")
-        id_expense = input("In which ID do you wanna make change: ")
+        id_expense =  get_valid_id("In which ID do you wanna make change: ")
         update_expense(id_expense, amount, date, reason, category)
     elif choice == 4:
-        id_expense = input("which ID do you wanna remove: ")
+        id_expense =  get_valid_id("which ID do you wanna remove: ")
         delete_expense(id_expense)
     elif choice == 5:
         print(get_spending_by_category())
