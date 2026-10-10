@@ -1,22 +1,60 @@
 from expenses import add_expense, update_expense, delete_expense, get_expenses, get_spending_by_category, get_total_spending, get_spending_over_time
 from visualizations import plot_spending_over_time, plot_spending_by_category, plot_monthly_spending, plot_spending_by_date_range
+from datetime import datetime
+
+def get_valid_amount():
+    while True:
+        try:
+            value = float(input("Enter the amount: "))
+            if value<=0:
+                print('The value should be greater than zero!!')
+                continue
+            return value
+        except ValueError:
+            print("Please enter a valid number.")
+            continue
+
+def get_valid_date():
+    while True:
+            try:
+                date = input("Enter the date in (YYYY-MM-DD) format: ")
+                datetime.strptime(date, "%Y-%m-%d")
+                return date
+            except ValueError:
+                print("Please enter the valid date.")
+                continue
 
 while True:
-    choice = int(input("1. Add expense \n2. View expenses \n3. Update expense \n4. Delete expense \n5. Total spending by category \n6. Total spending \n7. Spending by Date Range \n8. Daily Spending Over Time Chart\n9. Spending by Category Chart \n10. Monthly Spending\n11. Exit\n"))
+    try:
+        choice = int(input(
+        "1. Add expense\n"
+        "2. View expenses\n"
+        "3. Update expense\n"
+        "4. Delete expense\n"
+        "5. Total spending by category\n"
+        "6. Total spending\n"
+        "7. Spending by Date Range\n"
+        "8. Daily Spending Over Time Chart\n"
+        "9. Spending by Category Chart\n"
+        "10. Monthly Spending\n"
+        "11. Exit\n"
+        "Enter your choice: "
+        ))
+    except ValueError:
+        print("Please enter a valid menu number.")
+        continue
 
     if choice == 1:
-        amount = float(input("Enter amount: "))
+        amount = get_valid_amount()
         date = input("Enter date (YYYY-MM-DD): ")
         reason = input("Enter reason: ")
         category = input("Enter category: ")
         add_expense(amount, date, reason, category)
-
     elif choice == 2:
         expenses = get_expenses()
         print(expenses)
-
     elif choice == 3:
-        amount = float(input("Enter amount: "))
+        amount = get_valid_amount()
         date = input("Enter date (YYYY-MM-DD): ")
         reason = input("Enter reason: ")
         category = input("Enter category: ")
@@ -25,27 +63,20 @@ while True:
     elif choice == 4:
         id_expense = input("which ID do you wanna remove: ")
         delete_expense(id_expense)
-
     elif choice == 5:
         print(get_spending_by_category())
-
     elif choice == 6:
         print(get_total_spending())
-
     elif choice == 7:
         a = input('Enter the first date: ')
         b = input('Enter the end date: ')
         plot_spending_by_date_range(a, b)
-
     elif choice == 8:
         plot_spending_over_time()
-
     elif choice == 9:
         plot_spending_by_category()
-
     elif choice == 10:
         plot_monthly_spending()
-
     elif choice == 11:
         print('Bye')
         break
