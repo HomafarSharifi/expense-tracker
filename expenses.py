@@ -86,6 +86,21 @@ def get_spending_over_time():
         connection.close()
     return result
 
+def get_monthly_spending():
+    connection = get_connection()
+    cursor = connection.cursor()
+    try:
+        cursor.execute("SELECT DATE_FORMAT(date, '%Y-%m') AS month, SUM(amount) AS monthly_total FROM expenses GROUP BY DATE_FORMAT(date, '%Y-%m') ORDER BY month ASC;")
+        result = cursor.fetchall()
+    except Exception as e:
+        connection.rollback()
+        print(f"Failed to get monthly expense: {e}")
+        return []
+    finally:
+        cursor.close()
+        connection.close()
+    return result
+
 def get_expenses():
     connection = get_connection()
     cursor = connection.cursor()
@@ -95,6 +110,22 @@ def get_expenses():
     except Exception as e:
         connection.rollback()
         print(f"Failed to display expense: {e}")
+        return []
+    finally:
+        cursor.close()
+        connection.close()
+    return result
+
+
+def get_spending_by_date_range(start_date, end_date):
+    connection = get_connection()
+    cursor = connection.cursor()
+    try:
+        cursor.execute("SELECT date, SUM(amount) AS daily_total FROM expenses WHERE date BETWEEN %s AND %s GROUP BY date ORDER BY date ASC;", (start_date, end_date))
+        result = cursor.fetchall()
+    except Exception as e:
+        connection.rollback()
+        print(f"Failed to get spending by date range: {e}")
         return []
     finally:
         cursor.close()

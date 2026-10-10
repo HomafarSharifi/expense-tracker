@@ -1,8 +1,8 @@
 from expenses import add_expense, update_expense, delete_expense, get_expenses, get_spending_by_category, get_total_spending, get_spending_over_time
-from visualizations import plot_spending_over_time, plot_spending_by_category
+from visualizations import plot_spending_over_time, plot_spending_by_category, plot_monthly_spending, plot_spending_by_date_range
 
 while True:
-    choice = int(input("1. Add expense \n2. View expenses \n3. Update expense \n4. Delete expense \n5. Total spending by category \n6. Total spending \n7. Daily spending \n8. Daily Spending Over Time Chart\n9. Spending by Category Chart \n10. Exit\n"))
+    choice = int(input("1. Add expense \n2. View expenses \n3. Update expense \n4. Delete expense \n5. Total spending by category \n6. Total spending \n7. Spending by Date Range \n8. Daily Spending Over Time Chart\n9. Spending by Category Chart \n10. Monthly Spending\n11. Exit\n"))
 
     if choice == 1:
         amount = float(input("Enter amount: "))
@@ -33,7 +33,9 @@ while True:
         print(get_total_spending())
 
     elif choice == 7:
-        print(get_spending_over_time())
+        a = input('Enter the first date: ')
+        b = input('Enter the end date: ')
+        plot_spending_by_date_range(a, b)
 
     elif choice == 8:
         plot_spending_over_time()
@@ -42,6 +44,9 @@ while True:
         plot_spending_by_category()
 
     elif choice == 10:
+        plot_monthly_spending()
+
+    elif choice == 11:
         print('Bye')
         break
     else:
