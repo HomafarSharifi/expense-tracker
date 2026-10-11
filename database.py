@@ -6,4 +6,6 @@ def get_connection():
         port=3306,
         user="root",
         password="",
-        database="expense_tracker")
+        database="expense_tracker",
+        connection_timeout=5
+    )
