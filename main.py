@@ -28,6 +28,9 @@ def get_valid_id(display):
     while True:
         try:
             expense_id = int(input(display))
+            if expense_id <= 0:
+                print("ID must be a positive integer.")
+                continue
             return expense_id
         except ValueError:
             print("Invalid ID, plz try again")
@@ -82,8 +85,7 @@ while True:
         if start > end:
             print("Start date must not be after end date.")
             continue
-        else:
-            plot_spending_by_date_range(start, end)
+        plot_spending_by_date_range(start, end)
     elif choice == 8:
         plot_spending_over_time()
     elif choice == 9:
