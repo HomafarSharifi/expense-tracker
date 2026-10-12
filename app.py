@@ -32,13 +32,10 @@ st.sidebar.write("Choose a section to get started.")
 # First section
 st.header("Dashboard")
 
-# Load data from the existing project functions
+# Load data from the database
 expenses = get_expenses()
-total_result = get_total_spending()
+total_spending = get_total_spending()
 categories = get_spending_by_category()
-
-# Handle the total returned by the database function
-get_total_spending()
 
 # Dashboard summary
 col1, col2, col3 = st.columns(3)
@@ -46,7 +43,7 @@ col1, col2, col3 = st.columns(3)
 with col1:
     st.metric(
         label="Total Spending",
-        value=f"{get_total_spending:,.2f}"
+        value=f"{total_spending:,.2f}"
     )
 
 with col2:

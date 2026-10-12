@@ -1,6 +1,5 @@
 from database import get_connection
 
-
 def _fetch_all(query, params=None):
     connection = None
     cursor = None
@@ -119,93 +118,69 @@ def delete_expense(expense_id):
         if connection is not None and connection.is_connected():
             connection.close()
 
+def get_expenses():
+    return _fetch_all(
+        """
+        SELECT id, amount, date, reason, category
+        FROM expenses
+        ORDER BY date DESC, id DESC
+        """
+    )
+
+
 def get_spending_by_category():
-    try:
-        connection = get_connection()
-        cursor = connection.cursor()
-        cursor.execute('SELECT category, sum(amount) AS total_amount FROM expenses GROUP BY category')
-        result = cursor.fetchall()
-    except Exception as e:
-        connection.rollback()
-        print(f'Failed to categorize due to: {e}')
-        return []
-    finally:
-        cursor.close()
-        connection.close()
-    return result
+    return _fetch_all(
+        """
+        SELECT category, SUM(amount) AS total_amount
+        FROM expenses
+        GROUP BY category
+        ORDER BY total_amount DESC
+        """
+    )
+
 
 def get_total_spending():
-    try:
-        connection = get_connection()
-        cursor = connection.cursor()
-        cursor.execute('SELECT SUM(amount) AS total_spending FROM expenses')
-        result = cursor.fetchone()
-    except Exception as e:
-        connection.rollback()
-        print(f"Failed to display expense: {e}")
-        return []
-    finally:
-        cursor.close()
-        connection.close()
-    return result
+    result = _fetch_one(
+        """
+        SELECT COALESCE(SUM(amount), 0)
+        FROM expenses
+        """
+    )
+
+    return result[0]
+
 
 def get_spending_over_time():
-    try:
-        connection = get_connection()
-        cursor = connection.cursor()
-        cursor.execute('SELECT date, SUM(amount) AS daily_total FROM expenses GROUP BY date ORDER BY date ASC;')
-        result = cursor.fetchall()
-    except Exception as e:
-        connection.rollback()
-        print(f"Failed to display expense: {e}")
-        return []
-    finally:
-        cursor.close()
-        connection.close()
-    return result
+    return _fetch_all(
+        """
+        SELECT date, SUM(amount) AS daily_total
+        FROM expenses
+        GROUP BY date
+        ORDER BY date ASC
+        """
+    )
+
 
 def get_monthly_spending():
-    try:
-        connection = get_connection()
-        cursor = connection.cursor()
-        cursor.execute("SELECT DATE_FORMAT(date, '%Y-%m') AS month, SUM(amount) AS monthly_total FROM expenses GROUP BY DATE_FORMAT(date, '%Y-%m') ORDER BY month ASC;")
-        result = cursor.fetchall()
-    except Exception as e:
-        connection.rollback()
-        print(f"Failed to get monthly expense: {e}")
-        return []
-    finally:
-        cursor.close()
-        connection.close()
-    return result
-
-def get_expenses():
-    try:
-        connection = get_connection()
-        cursor = connection.cursor()
-        cursor.execute('SELECT * FROM expenses')
-        result = cursor.fetchall()
-    except Exception as e:
-        connection.rollback()
-        print(f"Failed to display expense: {e}")
-        return []
-    finally:
-        cursor.close()
-        connection.close()
-    return result
+    return _fetch_all(
+        """
+        SELECT DATE_FORMAT(date, '%Y-%m') AS month,
+               SUM(amount) AS monthly_total
+        FROM expenses
+        GROUP BY DATE_FORMAT(date, '%Y-%m')
+        ORDER BY month ASC
+        """
+    )
 
 
 def get_spending_by_date_range(start_date, end_date):
-    try:
-        connection = get_connection()
-        cursor = connection.cursor()
-        cursor.execute("SELECT date, SUM(amount) AS daily_total FROM expenses WHERE date BETWEEN %s AND %s GROUP BY date ORDER BY date ASC;", (start_date, end_date))
-        result = cursor.fetchall()
-    except Exception as e:
-        connection.rollback()
-        print(f"Failed to get spending by date range: {e}")
-        return []
-    finally:
-        cursor.close()
-        connection.close()
-    return result
+    return _fetch_all(
+        """
+        SELECT date, SUM(amount) AS daily_total
+        FROM expenses
+        WHERE date BETWEEN %s AND %s
+        GROUP BY date
+        ORDER BY date ASC
+        """,
+        (start_date, end_date)
+    )
