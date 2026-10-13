@@ -32,11 +32,18 @@ st.sidebar.write("Choose a section to get started.")
 # First section
 st.header("Dashboard")
 
-# Load data from the database
-expenses = get_expenses()
-total_spending = get_total_spending()
-categories = get_spending_by_category()
+# Load dashboard data safely
+try:
+    expenses = get_expenses()
+    total_spending = get_total_spending()
+    categories = get_spending_by_category()
 
+except Exception:
+    st.error(
+        "Unable to load expense data. "
+        "Please check that the database is running and try again."
+    )
+    st.stop()
 # Dashboard summary
 col1, col2, col3 = st.columns(3)
 
