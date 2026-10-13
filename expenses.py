@@ -1,4 +1,5 @@
 from database import get_connection
+from datetime import datetime
 
 def _fetch_all(query, params=None):
     connection = None
@@ -47,6 +48,30 @@ def _fetch_one(query, params=None):
 
 
 def add_expense(amount, date, reason, category):
+    try:
+        if float(amount) <= 0:
+            print("Amount must be greater than zero.")
+            return False
+    except (TypeError, ValueError):
+        print("Amount must be a valid number.")
+        return False
+
+    # Validate the date format.
+    try:
+        datetime.strptime(str(date), "%Y-%m-%d")
+    except (TypeError, ValueError):
+        print("Date must use YYYY-MM-DD format.")
+        return False
+
+    # Validate the category.
+    if not isinstance(category, str) or not category.strip():
+        print("Category cannot be empty.")
+        return False
+
+    # Validate the optional description.
+    if reason is not None and len(reason) > 100:
+        print("Reason cannot exceed 100 characters.")
+        return False
     connection = None
     cursor = None
     try:
