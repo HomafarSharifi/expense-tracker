@@ -1,5 +1,32 @@
 from database import get_connection
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
+
+
+def validate_expense(amount, expense_date, reason, category):
+    try:
+        numeric_amount = Decimal(str(amount))
+        if not numeric_amount.is_finite() or numeric_amount <= 0:
+            return False
+        if numeric_amount > Decimal("99999999.99"):
+            return False
+    except (InvalidOperation, TypeError, ValueError):
+        return False
+
+    try:
+        datetime.strptime(str(expense_date), "%Y-%m-%d")
+    except (TypeError, ValueError):
+        return False
+
+    if not isinstance(category, str) or not category.strip():
+        return False
+
+    if reason is not None:
+        if not isinstance(reason, str) or len(reason) > 100:
+            return False
+
+    return True
+
 
 def _fetch_all(query, params=None):
     connection = None
@@ -48,12 +75,8 @@ def _fetch_one(query, params=None):
 
 
 def add_expense(amount, date, reason, category):
-    try:
-        if float(amount) <= 0:
-            print("Amount must be greater than zero.")
-            return False
-    except (TypeError, ValueError):
-        print("Amount must be a valid number.")
+    if not validate_expense(amount, date, reason, category):
+        print("Invalid expense data.")
         return False
 
     # Validate the date format.
@@ -93,49 +116,96 @@ def add_expense(amount, date, reason, category):
         if connection is not None and connection.is_connected():
             connection.close()
 
+
 def update_expense(expense_id, amount, date, reason, category):
+    if not validate_expense(amount, date, reason, category):
+        print("Invalid expense data.")
+        return False
+
+    try:
+        expense_id = int(expense_id)
+        if expense_id <= 0:
+            return False
+    except (TypeError, ValueError):
+        return False
+
     connection = None
     cursor = None
+
     try:
         connection = get_connection()
         cursor = connection.cursor()
+
         cursor.execute(
             "SELECT id FROM expenses WHERE id = %s",
             (expense_id,)
         )
+
         if cursor.fetchone() is None:
             print(f"No expense found with ID {expense_id}.")
             return False
-        
-        cursor.execute('UPDATE expenses SET amount=%s, date=%s, reason=%s, category=%s WHERE id=%s;', (amount, date, reason, category, expense_id))
+
+        cursor.execute(
+            """
+            UPDATE expenses
+            SET amount = %s, date = %s, reason = %s, category = %s
+            WHERE id = %s
+            """,
+            (amount, date, reason, category.strip(), expense_id)
+        )
+
         connection.commit()
         return True
-    except Exception as e:
+
+    except Exception as error:
         if connection is not None and connection.is_connected():
             connection.rollback()
-        print(f"Failed to update expense: {e}")
+
+        print(f"Failed to update expense: {error}")
         return False
+
     finally:
-        cursor.close()
-        connection.close()
+        if cursor is not None:
+            cursor.close()
+
+        if connection is not None and connection.is_connected():
+            connection.close()
+
 
 def delete_expense(expense_id):
+    try:
+        expense_id = int(expense_id)
+        if expense_id <= 0:
+            return False
+    except (TypeError, ValueError):
+        return False
+
     connection = None
     cursor = None
+
     try:
         connection = get_connection()
         cursor = connection.cursor()
-        cursor.execute('DELETE FROM expenses WHERE id = %s;', (expense_id,))
+
+        cursor.execute(
+            "DELETE FROM expenses WHERE id = %s",
+            (expense_id,)
+        )
+
         if cursor.rowcount == 0:
             print(f"No expense found with ID {expense_id}.")
             return False
+
         connection.commit()
         return True
-    except Exception as e:
+
+    except Exception as error:
         if connection is not None and connection.is_connected():
             connection.rollback()
-        print(f"Failed to delete the expense: {e}")
+
+        print(f"Failed to delete expense: {error}")
         return False
+
     finally:
         if cursor is not None:
             cursor.close()
