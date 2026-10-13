@@ -53,28 +53,28 @@ except Exception:
 with overview_tab:
     # Dashboard summary
     col1, col2, col3 = st.columns(3)
-    
+
     with col1:
         st.metric(
             label="Total Spending",
             value=f"{total_spending:,.2f}"
         )
-    
+
     with col2:
         st.metric(
             label="Number of Expenses",
             value=len(expenses)
         )
-    
+
     with col3:
         st.metric(
             label="Spending Categories",
             value=len(categories)
         )
-    
+
     # Expense history
     st.subheader("Expense History")
-    
+
     if expenses:
         expense_data = [
             {
@@ -86,7 +86,7 @@ with overview_tab:
             }
             for row in expenses
         ]
-    
+
         st.dataframe(
             expense_data,
             use_container_width=True,
@@ -104,8 +104,6 @@ with overview_tab:
         )
     else:
         st.info("No expenses found. Add your first expense to get started.")
-    
-    pass
 
 
 # Analytics tab
@@ -131,7 +129,8 @@ with analytics_tab:
         st.bar_chart(
             category_df,
             x="Category",
-            y="Total Spending"
+            y="Total Spending",
+            height=250
         )
     else:
         st.info("No category data available yet.")
@@ -156,7 +155,8 @@ with analytics_tab:
         st.bar_chart(
             monthly_df,
             x="Month",
-            y="Total Spending"
+            y="Total Spending",
+            height=250
         )
     else:
         st.info("No monthly spending data available yet.")
@@ -243,182 +243,183 @@ with analytics_tab:
         st.line_chart(
             daily_df,
             x="Date",
-            y="Daily Spending"
+            y="Daily Spending",
+            height=250
         )
     else:
         st.info("No daily spending data available for this period.")
 
-    pass
-
 
 # Manage Expenses tab
 with manage_tab:
-    # Add expense section
-    st.subheader("Add a New Expense")
-    
-    with st.form("add_expense_form"):
-        amount = st.number_input(
-            "Amount",
-            min_value=0.01,
-            step=1.0,
-            format="%.2f"
-        )
-    
-        expense_date = st.date_input("Date")
-    
-        reason = st.text_input(
-            "Reason",
-            max_chars=100,
-            placeholder="e.g. Lunch"
-        )
-    
-        category = st.selectbox(
-            "Category",
-            [
-                "FOOD",
-                "TRANSPORT",
-                "EDUCATION",
-                "ENTERTAINMENT",
-                "OTHER"
-            ]
-        )
-    
-        submitted = st.form_submit_button("Save Expense")
-    
-        
-        if submitted:
-            success = add_expense(
-                amount,
-                expense_date.strftime("%Y-%m-%d"),
-                reason,
-                category
-            )
-    
-            if success:
-                st.success("Expense added successfully!")
-                st.rerun()
-            else:
-                st.error("Failed to add expense. Check the terminal for details.")
+    add_tab, update_tab, delete_tab = st.tabs([
+        "➕ Add Expense",
+        "✏️ Update Expense",
+        "🗑️ Delete Expense"
+    ])
 
-
-    # Update expense
-    st.header("Manage Expenses")
-
-    st.subheader("Update Expense")
-
-    if expenses:
-        expense_options = {
-            f"ID {row[0]} — {row[3] or 'No description'} ({row[1]})": row
-            for row in expenses
-        }
-
-        selected_label = st.selectbox(
-            "Select an expense to update",
-            options=list(expense_options.keys()),
-            key="update_expense_select"
-        )
-
-        selected_expense = expense_options[selected_label]
-
-        with st.form("update_expense_form"):
-            new_amount = st.number_input(
+    with add_tab:
+        with st.form("add_expense_form"):
+            amount = st.number_input(
                 "Amount",
                 min_value=0.01,
-                value=float(selected_expense[1]),
                 step=1.0,
-                format="%.2f",
-                key="update_amount"
+                format="%.2f"
             )
 
-            new_date = st.date_input(
-                "Date",
-                value=selected_expense[2],
-                key="update_date"
-            )
+            expense_date = st.date_input("Date")
 
-            new_reason = st.text_input(
+            reason = st.text_input(
                 "Reason",
-                value=selected_expense[3] or "",
                 max_chars=100,
-                key="update_reason"
+                placeholder="e.g. Lunch"
             )
 
-            categories_list = [
-                "FOOD",
-                "TRANSPORT",
-                "EDUCATION",
-                "ENTERTAINMENT",
-                "OTHER"
-            ]
-
-            current_category = selected_expense[4]
-            category_index = (
-                categories_list.index(current_category)
-                if current_category in categories_list
-                else 0
-            )
-
-            new_category = st.selectbox(
+            category = st.selectbox(
                 "Category",
-                categories_list,
-                index=category_index,
-                key="update_category"
+                [
+                    "FOOD",
+                    "TRANSPORT",
+                    "EDUCATION",
+                    "ENTERTAINMENT",
+                    "OTHER"
+                ]
             )
 
-            update_submitted = st.form_submit_button("Save Changes")
+            submitted = st.form_submit_button("Save Expense")
 
 
-        if update_submitted:
-            success = update_expense(
-                selected_expense[0],
-                new_amount,
-                new_date.strftime("%Y-%m-%d"),
-                new_reason,
-                new_category
-            )
-
-            if success:
-                st.success("Expense updated successfully!")
-                st.rerun()
-            else:
-                st.error("Failed to update expense. Check the terminal for details.")
-    else:
-        st.info("Add an expense before trying to update one.")
-    
-    # Delete expense
-    st.subheader("Delete Expense")
-
-    if expenses:
-        delete_options = {
-            f"ID {row[0]} — {row[3] or 'No description'} ({row[1]})": row[0]
-            for row in expenses
-        }
-
-        selected_delete_label = st.selectbox(
-            "Select an expense to delete",
-            options=list(delete_options.keys()),
-            key="delete_expense_select"
-        )
-
-        confirm_delete = st.checkbox(
-            "I confirm that I want to permanently delete this expense.",
-            key="confirm_delete"
-        )
-
-
-        if st.button("Delete Selected Expense", type="primary"):
-            if confirm_delete:
-                success = delete_expense(
-                    delete_options[selected_delete_label]
+            if submitted:
+                success = add_expense(
+                    amount,
+                    expense_date.strftime("%Y-%m-%d"),
+                    reason,
+                    category
                 )
 
                 if success:
-                    st.success("Expense deleted successfully.")
+                    st.success("Expense added successfully!")
                     st.rerun()
                 else:
-                    st.error("Failed to delete expense. Check the terminal for details.")
-            else:
-                st.warning("Please confirm before deleting.")
-    else:
-        st.info("There are no expenses to delete.")
-    pass
+                    st.error("Failed to add expense. Check the terminal for details.")
+
+    with update_tab:
+        # Update expense
+        st.subheader("Update Expense")
+        
+        if expenses:
+            expense_options = {
+                f"ID {row[0]} — {row[3] or 'No description'} ({row[1]})": row
+                for row in expenses
+            }
+    
+            selected_label = st.selectbox(
+                "Select an expense to update",
+                options=list(expense_options.keys()),
+                key="update_expense_select"
+            )
+    
+            selected_expense = expense_options[selected_label]
+    
+            with st.form("update_expense_form"):
+                new_amount = st.number_input(
+                    "Amount",
+                    min_value=0.01,
+                    value=float(selected_expense[1]),
+                    step=1.0,
+                    format="%.2f",
+                    key="update_amount"
+                )
+    
+                new_date = st.date_input(
+                    "Date",
+                    value=selected_expense[2],
+                    key="update_date"
+                )
+    
+                new_reason = st.text_input(
+                    "Reason",
+                    value=selected_expense[3] or "",
+                    max_chars=100,
+                    key="update_reason"
+                )
+    
+                categories_list = [
+                    "FOOD",
+                    "TRANSPORT",
+                    "EDUCATION",
+                    "ENTERTAINMENT",
+                    "OTHER"
+                ]
+    
+                current_category = selected_expense[4]
+                category_index = (
+                    categories_list.index(current_category)
+                    if current_category in categories_list
+                    else 0
+                )
+    
+                new_category = st.selectbox(
+                    "Category",
+                    categories_list,
+                    index=category_index,
+                    key="update_category"
+                )
+    
+                update_submitted = st.form_submit_button("Save Changes")
+    
+    
+            if update_submitted:
+                success = update_expense(
+                    selected_expense[0],
+                    new_amount,
+                    new_date.strftime("%Y-%m-%d"),
+                    new_reason,
+                    new_category
+                )
+    
+                if success:
+                    st.success("Expense updated successfully!")
+                    st.rerun()
+                else:
+                    st.error("Failed to update expense. Check the terminal for details.")
+        else:
+            st.info("Add an expense before trying to update one.")
+
+    with delete_tab:
+        # Delete expense
+        st.subheader("Delete Expense")
+    
+        if expenses:
+            delete_options = {
+                f"ID {row[0]} — {row[3] or 'No description'} ({row[1]})": row[0]
+                for row in expenses
+            }
+    
+            selected_delete_label = st.selectbox(
+                "Select an expense to delete",
+                options=list(delete_options.keys()),
+                key="delete_expense_select"
+            )
+    
+            confirm_delete = st.checkbox(
+                "I confirm that I want to permanently delete this expense.",
+                key="confirm_delete"
+            )
+    
+    
+            if st.button("Delete Selected Expense", type="primary"):
+                if confirm_delete:
+                    success = delete_expense(
+                        delete_options[selected_delete_label]
+                    )
+    
+                    if success:
+                        st.success("Expense deleted successfully.")
+                        st.rerun()
+                    else:
+                        st.error("Failed to delete expense. Check the terminal for details.")
+                else:
+                    st.warning("Please confirm before deleting.")
+        else:
+            st.info("There are no expenses to delete.")
