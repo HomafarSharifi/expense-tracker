@@ -212,6 +212,18 @@ def get_expenses():
     )
 
 
+def get_categories():
+    return _fetch_all(
+        """
+        SELECT DISTINCT category
+        FROM expenses
+        WHERE category IS NOT NULL
+          AND TRIM(category) != ''
+        ORDER BY category ASC
+        """
+    )
+
+
 def get_spending_by_category():
     return _fetch_all(
         """

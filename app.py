@@ -9,7 +9,8 @@ from expenses import (
     get_monthly_spending,
     update_expense,
     delete_expense,
-    get_spending_by_date_range
+    get_spending_by_date_range,
+    get_categories,
 )
 
 # Page configuration
@@ -275,15 +276,34 @@ with manage_tab:
                 placeholder="e.g. Lunch"
             )
 
-            category = st.text_input(
-            "Category",
-            placeholder="e.g. Food, Transport, Rent"
+            existing_categories = [
+                row[0] for row in get_categories()
+            ]
+
+            category_options = [
+                "Create a new category..."
+            ] + existing_categories
+
+            category_choice = st.selectbox(
+                "Choose an existing category or create one",
+                category_options,
+                key="add_category_choice"
+            )
+
+            custom_category = st.text_input(
+                "New category (fill only when creating one)",
+                max_chars=40,
+                key="add_custom_category"
             )
 
             submitted = st.form_submit_button("Save Expense")
 
 
             if submitted:
+                if category_choice == "Create a new category...":
+                    category = custom_category.strip()
+                else:
+                    category = category_choice
                 success = add_expense(
                     amount,
                     expense_date.strftime("%Y-%m-%d"),
@@ -338,17 +358,46 @@ with manage_tab:
                     key="update_reason"
                 )
     
-                new_category = st.text_input(
-                    "Category",
-                    value=selected_expense[4],
+                existing_categories = [
+                    row[0] for row in get_categories()
+                ]
+
+                current_category = selected_expense[4]
+
+                category_options = list(existing_categories)
+
+                if current_category not in category_options:
+                    category_options.append(current_category)
+
+                category_options = [
+                    "Create a new category..."
+                ] + category_options
+
+                category_choice = st.selectbox(
+                    "Choose an existing category or create one",
+                    category_options,
+                    index=(
+                        category_options.index(current_category)
+                        if current_category in category_options
+                        else 0
+                    ),
+                    key="update_category_choice"
+                )
+
+                custom_category = st.text_input(
+                    "New category (fill only when creating one)",
                     max_chars=40,
-                    key="update_category"
+                    key="update_custom_category"
                 )
     
                 update_submitted = st.form_submit_button("Save Changes")
     
     
             if update_submitted:
+                if category_choice == "Create a new category...":
+                    new_category = custom_category.strip()
+                else:
+                    new_category = category_choice
                 success = update_expense(
                     selected_expense[0],
                     new_amount,
