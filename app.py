@@ -298,7 +298,7 @@ with manage_tab:
                 )
 
                 if success:
-                    st.success("Expense added successfully!")
+                    st.toast("Expense added successfully!", icon="✅")
                     st.rerun()
                 else:
                     st.error("Failed to add expense. Check the terminal for details.")
@@ -379,7 +379,7 @@ with manage_tab:
                 )
     
                 if success:
-                    st.success("Expense updated successfully!")
+                    st.toast("Expense updated successfully!", icon="✅")
                     st.rerun()
                 else:
                     st.error("Failed to update expense. Check the terminal for details.")
@@ -415,7 +415,7 @@ with manage_tab:
                     )
     
                     if success:
-                        st.success("Expense deleted successfully.")
+                        st.toast("Expense deleted successfully!", icon="✅")
                         st.rerun()
                     else:
                         st.error("Failed to delete expense. Check the terminal for details.")
