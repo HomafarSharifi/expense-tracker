@@ -78,23 +78,7 @@ def add_expense(amount, date, reason, category):
     if not validate_expense(amount, date, reason, category):
         print("Invalid expense data.")
         return False
-
-    # Validate the date format.
-    try:
-        datetime.strptime(str(date), "%Y-%m-%d")
-    except (TypeError, ValueError):
-        print("Date must use YYYY-MM-DD format.")
-        return False
-
-    # Validate the category.
-    if not isinstance(category, str) or not category.strip():
-        print("Category cannot be empty.")
-        return False
-
-    # Validate the optional description.
-    if reason is not None and len(reason) > 100:
-        print("Reason cannot exceed 100 characters.")
-        return False
+    
     connection = None
     cursor = None
     try:
