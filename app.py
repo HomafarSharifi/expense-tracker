@@ -275,15 +275,9 @@ with manage_tab:
                 placeholder="e.g. Lunch"
             )
 
-            category = st.selectbox(
-                "Category",
-                [
-                    "FOOD",
-                    "TRANSPORT",
-                    "EDUCATION",
-                    "ENTERTAINMENT",
-                    "OTHER"
-                ]
+            category = st.text_input(
+            "Category",
+            placeholder="e.g. Food, Transport, Rent"
             )
 
             submitted = st.form_submit_button("Save Expense")
@@ -344,25 +338,10 @@ with manage_tab:
                     key="update_reason"
                 )
     
-                categories_list = [
-                    "FOOD",
-                    "TRANSPORT",
-                    "EDUCATION",
-                    "ENTERTAINMENT",
-                    "OTHER"
-                ]
-    
-                current_category = selected_expense[4]
-                category_index = (
-                    categories_list.index(current_category)
-                    if current_category in categories_list
-                    else 0
-                )
-    
-                new_category = st.selectbox(
+                new_category = st.text_input(
                     "Category",
-                    categories_list,
-                    index=category_index,
+                    value=selected_expense[4],
+                    max_chars=40,
                     key="update_category"
                 )
     

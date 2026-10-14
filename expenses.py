@@ -18,7 +18,12 @@ def validate_expense(amount, expense_date, reason, category):
     except (TypeError, ValueError):
         return False
 
-    if not isinstance(category, str) or not category.strip():
+    if not isinstance(category, str):
+        return False
+
+    category = category.strip()
+
+    if not category or len(category) > 40:
         return False
 
     if reason is not None:
