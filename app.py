@@ -11,6 +11,7 @@ from expenses import (
     delete_expense,
     get_spending_by_date_range,
     get_categories,
+    validate_expense,
 )
 
 # Page configuration
@@ -42,6 +43,7 @@ try:
     expenses = get_expenses()
     total_spending = get_total_spending()
     categories = get_spending_by_category()
+    saved_categories = [row[0] for row in get_categories()]
 except Exception:
     st.error(
         "Unable to load expense data. "
@@ -224,10 +226,12 @@ with analytics_tab:
         else:
             st.info("No expenses found in this date range.")
 
-    # Daily spending chart
-    daily_results = get_spending_by_date_range(
-        start_date.strftime("%Y-%m-%d"),
-        end_date.strftime("%Y-%m-%d")
+    # Query only after validating the selected range; invalid ranges show no chart.
+    daily_results = (
+        get_spending_by_date_range(
+            start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d")
+        )
+        if start_date <= end_date else []
     )
 
     if daily_results:
@@ -276,9 +280,7 @@ with manage_tab:
                 placeholder="e.g. Lunch"
             )
 
-            existing_categories = [
-                row[0] for row in get_categories()
-            ]
+            existing_categories = saved_categories
 
             category_options = [
                 "Create a new category..."
@@ -311,11 +313,22 @@ with manage_tab:
                     category
                 )
 
-                if success:
+                valid_expense = validate_expense(
+                    amount, expense_date.strftime("%Y-%m-%d"), reason, category
+                )
+                if not valid_expense:
+                    st.error(
+                        "Check amount, date, category (1–40 characters), "
+                        "and reason (up to 100 characters)."
+                    )
+                elif success:
                     st.toast("Expense added successfully!", icon="✅")
                     st.rerun()
                 else:
-                    st.error("Failed to add expense. Check the terminal for details.")
+                    st.error(
+                        "The expense could not be saved. Check the database "
+                        "connection and try again."
+                    )
 
     with update_tab:
         # Update expense
@@ -358,9 +371,7 @@ with manage_tab:
                     key="update_reason"
                 )
     
-                existing_categories = [
-                    row[0] for row in get_categories()
-                ]
+                existing_categories = saved_categories
 
                 current_category = selected_expense[4]
 
@@ -406,11 +417,22 @@ with manage_tab:
                     new_category
                 )
     
-                if success:
+                valid_expense = validate_expense(
+                    new_amount, new_date.strftime("%Y-%m-%d"), new_reason, new_category
+                )
+                if not valid_expense:
+                    st.error(
+                        "Check amount, date, category (1–40 characters), "
+                        "and reason (up to 100 characters)."
+                    )
+                elif success:
                     st.toast("Expense updated successfully!", icon="✅")
                     st.rerun()
                 else:
-                    st.error("Failed to update expense. Check the terminal for details.")
+                    st.error(
+                        "The expense could not be updated. Check the database "
+                        "connection and try again."
+                    )
         else:
             st.info("Add an expense before trying to update one.")
 
@@ -446,7 +468,7 @@ with manage_tab:
                         st.toast("Expense deleted successfully!", icon="✅")
                         st.rerun()
                     else:
-                        st.error("Failed to delete expense. Check the terminal for details.")
+                        st.error("The expense could not be deleted. Refresh the page and try again.")
                 else:
                     st.warning("Please confirm before deleting.")
         else:
