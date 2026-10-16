@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
 from database import get_connection
@@ -45,6 +45,44 @@ def validate_date_range(start_date, end_date):
     except (TypeError, ValueError):
         return False
     return start <= end
+
+
+def _month_start(value):
+    """Convert a date or ISO date string to the first day of its month."""
+    try:
+        if isinstance(value, datetime):
+            value = value.date()
+        if isinstance(value, date):
+            parsed = value
+        else:
+            raw = str(value)
+            if len(raw) == 7:
+                parsed = datetime.strptime(raw, "%Y-%m").date()
+            else:
+                parsed = datetime.strptime(raw, "%Y-%m-%d").date()
+        return parsed.replace(day=1)
+    except (TypeError, ValueError):
+        return None
+
+
+def validate_income(amount, income_month, source):
+    try:
+        numeric_amount = Decimal(str(amount))
+        if (
+            not numeric_amount.is_finite()
+            or numeric_amount <= 0
+            or numeric_amount > Decimal("99999999.99")
+            or numeric_amount != numeric_amount.quantize(Decimal("0.01"))
+        ):
+            return False
+    except (InvalidOperation, TypeError, ValueError):
+        return False
+    return (
+        _month_start(income_month) is not None
+        and isinstance(source, str)
+        and bool(source.strip())
+        and len(source.strip()) <= 80
+    )
 
 
 def _close_resources(cursor, connection):
@@ -106,6 +144,77 @@ def add_expense(amount, expense_date, reason, category):
             "INSERT INTO expenses (amount, date, reason, category) VALUES (%s, %s, %s, %s)",
             (amount, expense_date, reason or None, category.strip()),
         )
+        connection.commit()
+        return True
+    except Exception as error:
+        logger.error("Database operation failed (%s)", type(error).__name__)
+        _rollback(connection)
+        return False
+    finally:
+        _close_resources(cursor, connection)
+
+
+def add_monthly_income(amount, income_month, source):
+    if not validate_income(amount, income_month, source):
+        return False
+    connection = cursor = None
+    try:
+        connection = get_connection()
+        cursor = connection.cursor()
+        cursor.execute(
+            "INSERT INTO monthly_income (income_month, source, amount) VALUES (%s, %s, %s)",
+            (_month_start(income_month), source.strip(), amount),
+        )
+        connection.commit()
+        return True
+    except Exception as error:
+        logger.error("Database operation failed (%s)", type(error).__name__)
+        _rollback(connection)
+        return False
+    finally:
+        _close_resources(cursor, connection)
+
+
+def get_monthly_income_entries(income_month):
+    month = _month_start(income_month)
+    if month is None:
+        return []
+    return _fetch_all(
+        "SELECT id, source, amount FROM monthly_income WHERE income_month = %s ORDER BY id DESC",
+        (month,),
+    )
+
+
+def get_monthly_income_total(income_month):
+    month = _month_start(income_month)
+    if month is None:
+        return Decimal("0")
+    result = _fetch_one(
+        "SELECT COALESCE(SUM(amount), 0) FROM monthly_income WHERE income_month = %s",
+        (month,),
+    )
+    return result[0] if result else Decimal("0")
+
+
+def get_income_and_spending_by_month():
+    """Return monthly income and spending rows; the UI merges their month keys."""
+    return _fetch_all(
+        """SELECT DATE_FORMAT(income_month, '%Y-%m') AS month, SUM(amount) AS total
+           FROM monthly_income GROUP BY DATE_FORMAT(income_month, '%Y-%m') ORDER BY month ASC"""
+    )
+
+
+def delete_monthly_income(income_id):
+    income_id = _positive_id(income_id)
+    if income_id is None:
+        return False
+    connection = cursor = None
+    try:
+        connection = get_connection()
+        cursor = connection.cursor()
+        cursor.execute("DELETE FROM monthly_income WHERE id = %s", (income_id,))
+        if cursor.rowcount == 0:
+            return False
         connection.commit()
         return True
     except Exception as error:
@@ -195,6 +304,14 @@ def get_spending_over_time():
 
 
 def get_monthly_spending():
+    return _fetch_all(
+        """SELECT DATE_FORMAT(date, '%Y-%m') AS month, SUM(amount) AS monthly_total
+           FROM expenses GROUP BY DATE_FORMAT(date, '%Y-%m') ORDER BY month ASC"""
+    )
+
+
+def get_monthly_spending_totals():
+    """Return one chronological month and spending total per result row."""
     return _fetch_all(
         """SELECT DATE_FORMAT(date, '%Y-%m') AS month, SUM(amount) AS monthly_total
            FROM expenses GROUP BY DATE_FORMAT(date, '%Y-%m') ORDER BY month ASC"""

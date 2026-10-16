@@ -5,10 +5,11 @@ A Streamlit app for recording expenses, managing categories, and exploring spend
 ## Features
 
 - Add, update, and delete expenses with clear confirmation and feedback
+- Record monthly income from multiple sources and see the month's income, spending, and remaining balance
 - Quick add from the sidebar while viewing any page
 - Reuse saved categories or create a new one
 - Search and filter expense history
-- Review color-coded category spending, stacked monthly trends, and daily trends for a selected date range
+- Switch monthly charts between total spending, category breakdown, and income versus spending; review color-coded category and daily trends
 - Set a display currency with the EXPENSE_CURRENCY environment variable
 
 ## Requirements
@@ -34,7 +35,7 @@ A Streamlit app for recording expenses, managing categories, and exploring spend
    python -m pip install "streamlit>=1.30" "pandas>=2.0" "mysql-connector-python>=8.0" "matplotlib>=3.7"
    ~~~
 
-4. Create the database and table. For a fresh database, import expenses.sql with your MySQL/MariaDB client. That file includes example rows; remove its INSERT section if you want an empty database. Or create the schema manually:
+4. Create the database and expense table. For a fresh database, import expenses.sql with your MySQL/MariaDB client. That file includes example rows; remove its INSERT section if you want an empty database. Or create the schema manually:
 
    ~~~sql
    CREATE DATABASE expense_tracker CHARACTER SET utf8mb4;
@@ -48,7 +49,13 @@ A Streamlit app for recording expenses, managing categories, and exploring spend
    );
    ~~~
 
-5. Configure the connection in PowerShell before launching the app:
+5. Create the monthly income table by running `income.sql` while connected to `expense_tracker`. This is safe for existing installations: it adds the income table and leaves all expense records untouched. For example, with the MySQL command-line client:
+
+   ~~~powershell
+   Get-Content .\income.sql | mysql -u expense_app -p expense_tracker
+   ~~~
+
+6. Configure the connection in PowerShell before launching the app:
 
    ~~~powershell
    $env:EXPENSE_DB_HOST = "localhost"
@@ -56,18 +63,22 @@ A Streamlit app for recording expenses, managing categories, and exploring spend
    $env:EXPENSE_DB_USER = "expense_app"
    $env:EXPENSE_DB_PASSWORD = "your-local-password"
    $env:EXPENSE_DB_NAME = "expense_tracker"
-   $env:EXPENSE_CURRENCY = "USD"
+   $env:EXPENSE_CURRENCY = "AFN"
    ~~~
 
    The default connection is localhost:3306, user root, and database expense_tracker for local compatibility. Set a password in EXPENSE_DB_PASSWORD and prefer a dedicated database account. Never commit passwords or real expense data.
 
-6. Start the web app:
+7. Start the web app:
 
    ~~~powershell
    streamlit run app.py
    ~~~
 
    The optional command-line interface can be started with python main.py.
+
+## Monthly income and balance
+
+Choose a month on the Overview tab, then add salary or any other income source in the Income tab. Add separate entries for multiple sources; the app sums them automatically. The remaining amount is monthly income minus expenses recorded during that calendar month. If no income is recorded, the app treats income as zero and prompts you to add it. The Analytics tab lets you switch the monthly chart between total spending, spending by category, and income-versus-spending. Months are shown in chronological order.
 
 ## Screenshots for GitHub
 
@@ -76,7 +87,7 @@ For a polished project page, capture the Overview, Analytics, and Manage expense
 ## Ready-to-use checklist
 
 - [ ] Install Python dependencies and start MySQL/MariaDB.
-- [ ] Create the database and expenses table.
+- [ ] Create the database and expenses table, then run `income.sql`.
 - [ ] Set the database environment variables.
-- [ ] Run the app and verify add, update, delete, filters, and analytics.
+- [ ] Run the app and verify income, monthly balance, expense add/update/delete, filters, and analytics.
 - [ ] Capture screenshots with fictional data before publishing.
