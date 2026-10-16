@@ -1,23 +1,26 @@
 # Personal Expense Tracker
 
-A Python and Streamlit application for recording expenses, managing categories, and reviewing spending trends. Records are stored in MySQL or MariaDB.
+A Streamlit app for recording expenses, managing categories, and exploring spending trends stored in MySQL or MariaDB.
 
 ## Features
 
-- Add, update, and delete expenses
-- Reuse categories already present in your expense history or create a new one
-- Review totals, category spending, monthly trends, and a selectable date range
-- Use the Streamlit interface or the optional command-line interface
+- Add, update, and delete expenses with clear confirmation and feedback
+- Quick add from the sidebar while viewing any page
+- Reuse saved categories or create a new one
+- Search and filter expense history
+- Review color-coded category spending, stacked monthly trends, and daily trends for a selected date range
+- Set a display currency with the EXPENSE_CURRENCY environment variable
 
 ## Requirements
 
 - Python 3.10 or newer
 - MySQL 8 or MariaDB 10.4 or newer
-- A database user permitted to create/read/update/delete records in expense_tracker
+- A database user permitted to read, insert, update, and delete records in expense_tracker
+- Python packages: streamlit, pandas, mysql-connector-python, and matplotlib (matplotlib is needed for the optional command-line charts)
 
 ## Setup
 
-1. Clone or download this repository and open a terminal in its folder.
+1. Clone or copy this repository and open PowerShell in the project folder.
 2. Create and activate a virtual environment:
 
    ~~~powershell
@@ -25,13 +28,13 @@ A Python and Streamlit application for recording expenses, managing categories, 
    .venv\Scripts\Activate.ps1
    ~~~
 
-3. Install dependencies:
+3. Install the packages listed above directly from this README:
 
    ~~~powershell
-   python -m pip install -r requirements.txt
+   python -m pip install "streamlit>=1.30" "pandas>=2.0" "mysql-connector-python>=8.0" "matplotlib>=3.7"
    ~~~
 
-4. Create the database and table. For a fresh database, import expenses.sql with your MySQL/MariaDB client. The dump contains example rows; remove its INSERT INTO expenses section first if you want an empty database. Alternatively, create the schema manually:
+4. Create the database and table. For a fresh database, import expenses.sql with your MySQL/MariaDB client. That file includes example rows; remove its INSERT section if you want an empty database. Or create the schema manually:
 
    ~~~sql
    CREATE DATABASE expense_tracker CHARACTER SET utf8mb4;
@@ -45,7 +48,7 @@ A Python and Streamlit application for recording expenses, managing categories, 
    );
    ~~~
 
-5. Configure the database connection in your environment before starting the app:
+5. Configure the connection in PowerShell before launching the app:
 
    ~~~powershell
    $env:EXPENSE_DB_HOST = "localhost"
@@ -53,39 +56,27 @@ A Python and Streamlit application for recording expenses, managing categories, 
    $env:EXPENSE_DB_USER = "expense_app"
    $env:EXPENSE_DB_PASSWORD = "your-local-password"
    $env:EXPENSE_DB_NAME = "expense_tracker"
+   $env:EXPENSE_CURRENCY = "USD"
    ~~~
 
-   The app defaults to localhost, port 3306, user root, and database expense_tracker for compatibility with a local development setup. Set a password through EXPENSE_DB_PASSWORD; do not store credentials in source code or commit a .env file. Use a dedicated database account rather than a privileged account when possible.
+   The default connection is localhost:3306, user root, and database expense_tracker for local compatibility. Set a password in EXPENSE_DB_PASSWORD and prefer a dedicated database account. Never commit passwords or real expense data.
 
-6. Launch the web app:
+6. Start the web app:
 
    ~~~powershell
    streamlit run app.py
    ~~~
 
-   To use the command-line version instead, run python main.py.
+   The optional command-line interface can be started with python main.py.
 
-## Validation and tests
+## Screenshots for GitHub
 
-Run the automated unit tests with Python's built-in test runner:
+For a polished project page, capture the Overview, Analytics, and Manage expenses tabs with sample data. Save them in a screenshots/ folder and embed them here with relative image paths. Use fictional sample records and hide connection details.
 
-~~~powershell
-python -m unittest discover -s tests -v
-~~~
+## Ready-to-use checklist
 
-The suite also works with pytest if you prefer. It covers input/date validation and database transaction behavior using mocks, so no running database is needed.
-
-## Screenshots
-
-To add screenshots for GitHub, create a screenshots/ folder and save clear images of the Overview, Analytics, and Manage Expenses screens there. Embed committed images in this README with relative Markdown paths such as ![Overview](screenshots/overview.png). Do not include real personal expense data, passwords, connection strings, or other private information in screenshots.
-
-## Troubleshooting
-
-- **Connection refused or timed out:** Start MySQL/MariaDB and confirm the host and port environment variables.
-- **Access denied:** Check the configured username, password, and database grants.
-- **Unknown database/table:** Create expense_tracker and import expenses.sql, or create the table with the schema above.
-- **Tests fail to import dependencies:** Activate the virtual environment and install requirements.txt.
-
-## Repository readiness
-
-.gitignore excludes the virtual environment, Python cache files, and .env files. Keep secrets in local environment variables or a secrets manager, and review git status before publishing.
+- [ ] Install Python dependencies and start MySQL/MariaDB.
+- [ ] Create the database and expenses table.
+- [ ] Set the database environment variables.
+- [ ] Run the app and verify add, update, delete, filters, and analytics.
+- [ ] Capture screenshots with fictional data before publishing.

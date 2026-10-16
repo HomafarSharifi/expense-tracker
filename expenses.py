@@ -209,3 +209,12 @@ def get_spending_by_date_range(start_date, end_date):
            WHERE date BETWEEN %s AND %s GROUP BY date ORDER BY date ASC""",
         (start_date, end_date),
     )
+def get_monthly_spending_by_category():
+    """Return monthly totals split by category for the stacked analytics chart."""
+    return _fetch_all(
+        """SELECT DATE_FORMAT(date, '%Y-%m') AS month, category,
+                  SUM(amount) AS monthly_total
+           FROM expenses
+           GROUP BY DATE_FORMAT(date, '%Y-%m'), category
+           ORDER BY month ASC, category ASC"""
+    )
