@@ -11,6 +11,7 @@ A Streamlit app for recording expenses, managing categories, and exploring spend
 - Search and filter expense history
 - Switch monthly charts between total spending, category breakdown, and income versus spending; review color-coded category and daily trends
 - Set a display currency with the EXPENSE_CURRENCY environment variable
+- Switch the interface between English and Dari; Dari mode uses a right-to-left layout
 
 ## Requirements
 
@@ -79,6 +80,10 @@ A Streamlit app for recording expenses, managing categories, and exploring spend
 ## Monthly income and balance
 
 Choose a month on the Overview tab, then add salary or any other income source in the Income tab. Add separate entries for multiple sources; the app sums them automatically. The remaining amount is monthly income minus expenses recorded during that calendar month. If no income is recorded, the app treats income as zero and prompts you to add it. The Analytics tab lets you switch the monthly chart between total spending, spending by category, and income-versus-spending. Months are shown in chronological order.
+
+## Language
+
+Use the **Language** selector in the sidebar to switch between English and Dari (دری). The choice stays active during the current app session. Dari mode translates the app controls, guidance, chart and table labels, standard category names, notifications, and empty states, and aligns the interface right-to-left. It uses the Vazir font from jsDelivr, with local sans-serif fallbacks if the font CDN is unavailable. User-created category names, income sources, and expense descriptions remain as entered.
 
 ## Screenshots for GitHub
 
