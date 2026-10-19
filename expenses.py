@@ -47,7 +47,7 @@ def validate_date_range(start_date, end_date):
     return start <= end
 
 
-def _month_start(value):
+def _month_start(value, exact=False):
     """Convert a date or ISO date string to the first day of its month."""
     try:
         if isinstance(value, datetime):
@@ -60,12 +60,12 @@ def _month_start(value):
                 parsed = datetime.strptime(raw, "%Y-%m").date()
             else:
                 parsed = datetime.strptime(raw, "%Y-%m-%d").date()
-        return parsed.replace(day=1)
+        return parsed if exact else parsed.replace(day=1)
     except (TypeError, ValueError):
         return None
 
 
-def validate_income(amount, income_month, source):
+def validate_income(amount, income_month, source, exact=False):
     try:
         numeric_amount = Decimal(str(amount))
         if (
@@ -78,7 +78,7 @@ def validate_income(amount, income_month, source):
     except (InvalidOperation, TypeError, ValueError):
         return False
     return (
-        _month_start(income_month) is not None
+        _month_start(income_month, exact=exact) is not None
         and isinstance(source, str)
         and bool(source.strip())
         and len(source.strip()) <= 80
@@ -154,8 +154,8 @@ def add_expense(amount, expense_date, reason, category):
         _close_resources(cursor, connection)
 
 
-def add_monthly_income(amount, income_month, source):
-    if not validate_income(amount, income_month, source):
+def add_monthly_income(amount, income_month, source, exact=False):
+    if not validate_income(amount, income_month, source, exact=exact):
         return False
     connection = cursor = None
     try:
@@ -163,7 +163,7 @@ def add_monthly_income(amount, income_month, source):
         cursor = connection.cursor()
         cursor.execute(
             "INSERT INTO monthly_income (income_month, source, amount) VALUES (%s, %s, %s)",
-            (_month_start(income_month), source.strip(), amount),
+            (_month_start(income_month, exact=exact), source.strip(), amount),
         )
         connection.commit()
         return True
@@ -175,32 +175,39 @@ def add_monthly_income(amount, income_month, source):
         _close_resources(cursor, connection)
 
 
-def get_monthly_income_entries(income_month):
-    month = _month_start(income_month)
+def get_monthly_income_entries(income_month, exact=False, period_end=None):
+    month = _month_start(income_month, exact=exact)
     if month is None:
         return []
-    return _fetch_all(
-        "SELECT id, source, amount FROM monthly_income WHERE income_month = %s ORDER BY id DESC",
-        (month,),
-    )
+    if period_end is not None:
+        end = _month_start(period_end, exact=True)
+        return _fetch_all(
+            "SELECT id, source, amount FROM monthly_income WHERE income_month BETWEEN %s AND %s ORDER BY id DESC",
+            (month, end),
+        )
+    return _fetch_all("SELECT id, source, amount FROM monthly_income WHERE income_month = %s ORDER BY id DESC", (month,))
 
 
-def get_monthly_income_total(income_month):
-    month = _month_start(income_month)
+def get_monthly_income_total(income_month, exact=False, period_end=None):
+    month = _month_start(income_month, exact=exact)
     if month is None:
         return Decimal("0")
-    result = _fetch_one(
-        "SELECT COALESCE(SUM(amount), 0) FROM monthly_income WHERE income_month = %s",
-        (month,),
-    )
+    if period_end is not None:
+        end = _month_start(period_end, exact=True)
+        result = _fetch_one(
+            "SELECT COALESCE(SUM(amount), 0) FROM monthly_income WHERE income_month BETWEEN %s AND %s",
+            (month, end),
+        )
+    else:
+        result = _fetch_one("SELECT COALESCE(SUM(amount), 0) FROM monthly_income WHERE income_month = %s", (month,))
     return result[0] if result else Decimal("0")
 
 
 def get_income_and_spending_by_month():
-    """Return monthly income and spending rows; the UI merges their month keys."""
+    """Return income month markers and totals; the UI applies the chosen calendar."""
     return _fetch_all(
-        """SELECT DATE_FORMAT(income_month, '%Y-%m') AS month, SUM(amount) AS total
-           FROM monthly_income GROUP BY DATE_FORMAT(income_month, '%Y-%m') ORDER BY month ASC"""
+        """SELECT income_month, SUM(amount) AS total
+           FROM monthly_income GROUP BY income_month ORDER BY income_month ASC"""
     )
 
 

@@ -5,6 +5,16 @@ import pandas as pd
 import streamlit as st
 
 from database_errors import database_error_help
+from jalali_calendar import (
+    AFGHAN_MONTHS,
+    format_jalali_date,
+    format_jalali_month,
+    jalali_month_bounds,
+    jalali_month_days,
+    month_key as jalali_month_key,
+    to_gregorian as jalali_to_gregorian,
+    to_jalali,
+)
 from expenses import (
     add_expense,
     add_monthly_income,
@@ -47,6 +57,9 @@ TRANSLATIONS = {
     "Capture an expense without leaving your current view.": "بدون ترک صفحهٔ فعلی، مصرف خود را ثبت کنید.",
     "Amount": "مقدار",
     "Date": "تاریخ",
+    "Year": "سال",
+    "Month": "ماه",
+    "Day": "روز",
     "Category": "دسته‌بندی",
     "New category (when creating one)": "دسته‌بندی جدید (برای ساختن دسته‌بندی)",
     "What was it for?": "این مصرف برای چه بود؟",
@@ -56,6 +69,7 @@ TRANSLATIONS = {
     "Could not save the expense. Check your database connection and try again.": "مصرف ثبت نشد. اتصال پایگاه داده را بررسی و دوباره تلاش کنید.",
     "Check the amount, date, category (1–40 characters), and reason (up to 100 characters).": "مقدار، تاریخ، دسته‌بندی (۱ تا ۴۰ نویسه) و توضیح (حداکثر ۱۰۰ نویسه) را بررسی کنید.",
     "Language": "زبان",
+    "Advanced settings": "تنظیمات پیشرفته",
     "Diagnostic": "تشخیص",
     "Could not connect to the configured MySQL server. Start MySQL/MariaDB and verify EXPENSE_DB_HOST and EXPENSE_DB_PORT.": "اتصال به سرور MySQL ممکن نشد. MySQL/MariaDB را روشن کرده و EXPENSE_DB_HOST و EXPENSE_DB_PORT را بررسی کنید.",
     "MySQL rejected the login. Verify EXPENSE_DB_USER and EXPENSE_DB_PASSWORD.": "ورود به MySQL رد شد. EXPENSE_DB_USER و EXPENSE_DB_PASSWORD را بررسی کنید.",
@@ -75,7 +89,7 @@ TRANSLATIONS = {
     "Manage expenses": "مدیریت مصارف",
     "Monthly money at a glance": "خلاصهٔ وضعیت پول در ماه",
     "Choose a month": "یک ماه را انتخاب کنید",
-    "Choose any day in a month to see that month's income and spending.": "هر روزی از ماه را انتخاب کنید تا درآمد و مصارف همان ماه را ببینید.",
+    "Choose a month to see that month's income and spending.": "ماه را انتخاب کنید تا درآمد و مصارف همان ماه را ببینید.",
     "Income this month": "درآمد این ماه",
     "Spent this month": "مصرف‌شده در این ماه",
     "Money remaining": "پول باقی‌مانده",
@@ -85,6 +99,9 @@ TRANSLATIONS = {
     "Your spending is higher than the income recorded for this month.": "مصارف شما از درآمد ثبت‌شدهٔ این ماه بیشتر است.",
     "All-time spending: {amount} · {expenses} expenses · {categories} categories": "مجموع مصارف: {amount} · {expenses} مصرف · {categories} دسته‌بندی",
     "Expense history": "تاریخچهٔ مصارف",
+    "Find expenses": "پیدا کردن مصرف",
+    "Choose a category or search descriptions to narrow this list.": "برای محدود کردن فهرست، دسته‌بندی را انتخاب کنید یا توضیحات را جست‌وجو کنید.",
+    "Clear filters": "پاک کردن فیلترها",
     "Filter by category": "فیلتر بر اساس دسته‌بندی",
     "All categories": "همهٔ دسته‌بندی‌ها",
     "Search expenses": "جست‌وجوی مصارف",
@@ -100,6 +117,7 @@ TRANSLATIONS = {
     "Category insights will appear after you record an expense.": "پس از ثبت مصرف، تحلیل دسته‌بندی‌ها نمایش داده می‌شود.",
     "Monthly spending": "مصارف ماهانه",
     "Monthly chart": "نمودار ماهانه",
+    "Choose a monthly view to see totals, category details, or compare income with spending.": "یکی از نمودارهای ماهانه را انتخاب کنید تا مجموع، دسته‌بندی‌ها یا مقایسهٔ درآمد و مصارف را ببینید.",
     "Total spending by category, with a distinct color for each category.": "مجموع مصارف هر دسته‌بندی با رنگ جداگانه.",
     "Monthly spending stacked by category.": "مصارف ماهانه به تفکیک دسته‌بندی.",
     "Total spending for each month in chronological order.": "مجموع مصارف هر ماه به ترتیب زمانی.",
@@ -139,6 +157,9 @@ TRANSLATIONS = {
     "Update expense": "ویرایش مصرف",
     "Delete expense": "حذف مصرف",
     "Add a detailed expense": "ثبت مصرف با جزئیات",
+    "Manage your expenses here. Add a new record, update an existing one, or delete it after confirmation.": "مصارف خود را در این‌جا مدیریت کنید: مورد تازه ثبت کنید، مورد قبلی را ویرایش کنید یا پس از تأیید حذف نمایید.",
+    "Choose a category. The extra field appears only when you create a new category.": "دسته‌بندی را انتخاب کنید. خانهٔ اضافی فقط هنگام ساختن دسته‌بندی جدید نمایش داده می‌شود.",
+    "Income is for the selected month. Add each source separately; the app adds them together.": "درآمد برای ماه انتخاب‌شده است. هر منبع را جداگانه ثبت کنید؛ برنامه آن‌ها را باهم جمع می‌کند.",
     "e.g. Groceries": "مثلاً خرید مواد غذایی",
     "Create a new category...": "ساختن دسته‌بندی جدید...",
     "Save changes": "ذخیرهٔ تغییرات",
@@ -163,6 +184,42 @@ def t(text):
     return text
 
 
+def language_widget_key(name):
+    """Give language-sensitive widgets keys that refresh their visible translated label."""
+    suffix = "dari" if st.session_state.get("language", "English") == "دری" else "english"
+    return f"{name}_{suffix}"
+
+
+def sync_language_widget_state():
+    """Carry a widget's raw choice across language changes while refreshing its label."""
+    current_language = st.session_state.get("language", "English")
+    previous_language = st.session_state.get("_widget_language", current_language)
+    if current_language == previous_language:
+        st.session_state["_widget_language"] = current_language
+        return
+
+    previous_suffix = "dari" if previous_language == "دری" else "english"
+    current_suffix = "dari" if current_language == "دری" else "english"
+    for name in (
+        "quick_category",
+        "history_category",
+        "monthly_chart_view",
+        "add_category_choice",
+        "update_category_choice",
+    ):
+        previous_key = f"{name}_{previous_suffix}"
+        current_key = f"{name}_{current_suffix}"
+        if previous_key in st.session_state:
+            previous_value = st.session_state[previous_key]
+            if name == "monthly_chart_view":
+                st.session_state[current_key] = t(source_option(previous_value))
+            else:
+                st.session_state[current_key] = category_option_label(
+                    category_option_value(previous_value)
+                )
+    st.session_state["_widget_language"] = current_language
+
+
 def category_label(value):
     """Translate familiar category names for display without changing stored values."""
     if st.session_state.get("language", "English") == "دری":
@@ -175,11 +232,45 @@ def category_option_label(value):
         return t(value)
     return category_label(value)
 
+
+def category_option_value(label):
+    """Convert a displayed category choice back to its stable database value."""
+    if label in (NEW_CATEGORY, TRANSLATIONS[NEW_CATEGORY]):
+        return NEW_CATEGORY
+    if label in ("All categories", TRANSLATIONS["All categories"]):
+        return "All categories"
+    translated_to_source = {
+        translated: source for source, translated in CATEGORY_TRANSLATIONS.items()
+    }
+    return translated_to_source.get(label, label)
+
+
+def category_widget_key(name, values):
+    """Keep the stored selection valid after translating or removing a category."""
+    key = language_widget_key(name)
+    available_labels = [category_option_label(value) for value in values]
+    if key in st.session_state:
+        selected_value = category_option_value(st.session_state[key])
+        selected_label = category_option_label(selected_value)
+        st.session_state[key] = (
+            selected_label if selected_label in available_labels else available_labels[0]
+        )
+    return key
+
+
+def source_option(label):
+    """Recover a translated chart choice's stable English key."""
+    return next(
+        (source for source, translated in TRANSLATIONS.items() if translated == label),
+        label,
+    )
+
 st.set_page_config(
     page_title=t("Expense Tracker"),
     page_icon="💰",
     layout="wide",
-    initial_sidebar_state="expanded",
+    # Streamlit can collapse the navigation drawer automatically on narrow screens.
+    initial_sidebar_state="auto",
 )
 
 st.markdown(
@@ -207,6 +298,17 @@ st.markdown(
         .block-container { padding: 1rem .75rem 2rem; }
         [data-testid="stMetric"] { padding: .8rem; }
         [data-testid="stMetricValue"] { font-size: 1.25rem; }
+        [data-testid="stHorizontalBlock"] {
+            display: grid !important;
+            grid-template-columns: minmax(0, 1fr) !important;
+            gap: .75rem;
+        }
+        [data-testid="stHorizontalBlock"] > [data-testid="column"] {
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            flex: none !important;
+        }
     }
     </style>
     """,
@@ -214,6 +316,7 @@ st.markdown(
 )
 
 st.sidebar.selectbox(t("Language"), LANGUAGE_OPTIONS, key="language")
+sync_language_widget_state()
 if st.session_state.get("language") == "دری":
     st.markdown(
         """<style>
@@ -277,14 +380,13 @@ def month_label(value):
     """Format a YYYY-MM key for the charts while keeping the data order intact."""
     parsed = datetime.strptime(str(value), "%Y-%m")
     if st.session_state.get("language", "English") == "دری":
-        dari_months = ["جنوری", "فبروری", "مارچ", "اپریل", "می", "جون", "جولای", "آگست", "سپتامبر", "اکتوبر", "نوامبر", "دسامبر"]
-        return f"{dari_months[parsed.month - 1]} {parsed.year}"
+        return f"{AFGHAN_MONTHS[parsed.month - 1]} {parsed.year}"
     return parsed.strftime("%b %Y")
 
 
 def format_month(value, format_string="%B %Y"):
     if st.session_state.get("language", "English") == "دری":
-        return month_label(value.strftime("%Y-%m"))
+        return format_jalali_month(value)
     return value.strftime(format_string)
 
 
@@ -292,10 +394,59 @@ def date_format():
     return "YYYY/MM/DD" if st.session_state.get("language") == "دری" else "MMM D, YYYY"
 
 
+def app_date_input(label, value, key, help=None, month_only=False):
+    """Use Afghan Jalali date parts in Dari mode and Gregorian picker in English."""
+    if st.session_state.get("language") != "دری":
+        return st.date_input(label, value=value, key=key, help=help)
+
+    selected = to_jalali(value)
+    columns = st.columns([2, 3] if month_only else [2, 3, 2])
+    year_key, month_key = f"{key}_year", f"{key}_month"
+    years = list(range(selected.year - 10, selected.year + 11))
+    year = columns[0].selectbox(
+        t("Year"), years, index=years.index(selected.year), key=year_key
+    )
+    month = columns[1].selectbox(
+        t("Month"), range(1, 13), index=selected.month - 1,
+        format_func=lambda number: AFGHAN_MONTHS[number - 1], key=month_key,
+    )
+    if month_only:
+        return jalali_to_gregorian(year, month, 1)
+
+    days = jalali_month_days(year, month)
+    day_key = f"{key}_day"
+    if day_key in st.session_state and st.session_state[day_key] > days:
+        st.session_state[day_key] = days
+    day = columns[2].selectbox(
+        t("Day"), range(1, days + 1), index=min(selected.day, days) - 1,
+        key=day_key,
+    )
+    return jalali_to_gregorian(year, month, day)
+
+
+def display_date(value):
+    if st.session_state.get("language") == "دری":
+        return format_jalali_date(value)
+    return value
+
+
+def jalali_monthly_totals(expense_rows):
+    totals, by_category = {}, {}
+    for row in expense_rows:
+        key = jalali_month_key(row[2])
+        totals[key] = totals.get(key, 0.0) + float(row[1] or 0)
+        category_key = (key, row[4])
+        by_category[category_key] = by_category.get(category_key, 0.0) + float(row[1] or 0)
+    return (
+        [(key, totals[key]) for key in sorted(totals)],
+        [(month, category, amount) for (month, category), amount in sorted(by_category.items())],
+    )
+
+
 def table_rows(rows):
     return [
         {
-            t("Date"): row[2],
+            t("Date"): display_date(row[2]),
             t("Category"): category_label(row[4]),
             t("Reason"): row[3] or "",
             t("Amount"): float(row[1]),
@@ -309,13 +460,24 @@ def expense_is_valid(amount, when, reason, category):
 
 
 def save_quick_expense():
+    category_key = language_widget_key("quick_category")
+    selected_category = category_option_value(
+        st.session_state.get(category_key, category_option_label(NEW_CATEGORY))
+    )
     category = (
-        st.session_state.quick_custom_category.strip()
-        if st.session_state.quick_category == NEW_CATEGORY
-        else st.session_state.quick_category
+        st.session_state.get("quick_custom_category", "").strip()
+        if selected_category == NEW_CATEGORY
+        else selected_category
     )
     amount = st.session_state.quick_amount
-    when = st.session_state.quick_date
+    if st.session_state.get("language") == "دری":
+        when = jalali_to_gregorian(
+            st.session_state.quick_date_year,
+            st.session_state.quick_date_month,
+            st.session_state.quick_date_day,
+        )
+    else:
+        when = st.session_state.quick_date
     reason = st.session_state.quick_reason.strip()
     if not expense_is_valid(amount, when, reason, category):
         st.session_state.quick_message = t(
@@ -332,7 +494,12 @@ def save_quick_expense():
     if success:
         st.session_state.quick_amount = 0.01
         st.session_state.quick_date = date.today()
-        st.session_state.quick_category = NEW_CATEGORY
+        if st.session_state.get("language") == "دری":
+            current_jalali = to_jalali(date.today())
+            st.session_state.quick_date_year = current_jalali.year
+            st.session_state.quick_date_month = current_jalali.month
+            st.session_state.quick_date_day = current_jalali.day
+        st.session_state[category_key] = category_option_label(NEW_CATEGORY)
         st.session_state.quick_custom_category = ""
         st.session_state.quick_reason = ""
 
@@ -348,6 +515,19 @@ try:
     monthly_results = get_monthly_spending_by_category()
     spending_month_totals = get_monthly_spending_totals()
     income_month_totals = get_income_and_spending_by_month()
+    if st.session_state.get("language") == "دری":
+        spending_month_totals, monthly_results = jalali_monthly_totals(expenses)
+        income_totals = {}
+        for marker, amount in income_month_totals:
+            key = jalali_month_key(marker)
+            income_totals[key] = income_totals.get(key, 0.0) + float(amount or 0)
+        income_month_totals = sorted(income_totals.items())
+    else:
+        income_totals = {}
+        for marker, amount in income_month_totals:
+            key = marker.strftime("%Y-%m") if hasattr(marker, "strftime") else str(marker)[:7]
+            income_totals[key] = income_totals.get(key, 0.0) + float(amount or 0)
+        income_month_totals = sorted(income_totals.items())
 except Exception as error:
     message, diagnostic = database_error_help(error)
     st.error(t(message))
@@ -357,6 +537,21 @@ except Exception as error:
 with st.sidebar:
     with st.expander(t("Quick add"), expanded=False):
         st.caption(t("Capture an expense without leaving your current view."))
+        st.caption(t("Choose a category. The extra field appears only when you create a new category."))
+        # Put the common path first so quick add doesn't start in category-creation mode.
+        category_options = saved_categories + [NEW_CATEGORY]
+        quick_category_label = st.selectbox(
+            t("Category"),
+            [category_option_label(value) for value in category_options],
+            key=category_widget_key("quick_category", category_options),
+        )
+        if category_option_value(quick_category_label) == NEW_CATEGORY:
+            st.text_input(
+                t("New category (when creating one)"),
+                max_chars=40,
+                key="quick_custom_category",
+            )
+        quick_date = app_date_input(t("Date"), value=date.today(), key="quick_date")
         with st.form("quick_add_expense"):
             st.number_input(
                 t("Amount"),
@@ -364,18 +559,6 @@ with st.sidebar:
                 step=1.0,
                 format="%.2f",
                 key="quick_amount",
-            )
-            st.date_input(t("Date"), value=date.today(), key="quick_date")
-            st.selectbox(
-                t("Category"),
-                [NEW_CATEGORY] + saved_categories,
-                key="quick_category",
-                format_func=category_option_label,
-            )
-            st.text_input(
-                t("New category (when creating one)"),
-                max_chars=40,
-                key="quick_custom_category",
             )
             st.text_input(
                 t("What was it for?"),
@@ -395,7 +578,8 @@ with st.sidebar:
                 st.error(st.session_state.quick_message)
     st.divider()
     st.caption(t("Currency display: {currency}").format(currency=CURRENCY))
-    st.caption(t("Change it with the EXPENSE_CURRENCY environment variable."))
+    with st.expander(t("Advanced settings"), expanded=False):
+        st.caption(t("Change it with the EXPENSE_CURRENCY environment variable."))
 
 overview_tab, analytics_tab, income_tab, manage_tab = st.tabs(
     [t("Overview"), t("Analytics"), t("Income"), t("Manage expenses")]
@@ -403,19 +587,26 @@ overview_tab, analytics_tab, income_tab, manage_tab = st.tabs(
 
 with overview_tab:
     st.subheader(t("Monthly money at a glance"))
-    selected_month = st.date_input(
+    selected_month = app_date_input(
         t("Choose a month"),
         value=date.today().replace(day=1),
         key="overview_month",
-        help=t("Choose any day in a month to see that month's income and spending."),
+        help=t("Choose a month to see that month's income and spending."),
+        month_only=True,
     )
-    month_start = selected_month.replace(day=1)
-    if month_start.month == 12:
-        next_month = month_start.replace(year=month_start.year + 1, month=1)
+    if st.session_state.get("language") == "دری":
+        month_start, month_end = jalali_month_bounds(selected_month)
     else:
-        next_month = month_start.replace(month=month_start.month + 1)
-    month_end = next_month - timedelta(days=1)
-    monthly_income = get_monthly_income_total(month_start)
+        month_start = selected_month.replace(day=1)
+        if month_start.month == 12:
+            next_month = month_start.replace(year=month_start.year + 1, month=1)
+        else:
+            next_month = month_start.replace(month=month_start.month + 1)
+        month_end = next_month - timedelta(days=1)
+    is_jalali = st.session_state.get("language") == "دری"
+    monthly_income = get_monthly_income_total(
+        month_start, exact=is_jalali, period_end=month_end if is_jalali else None
+    )
     monthly_spending = sum(
         (row[1] or 0 for row in expenses if month_start <= row[2] <= month_end),
         start=0,
@@ -443,18 +634,22 @@ with overview_tab:
     )
 
     st.subheader(t("Expense history"))
-    filter_col, search_col = st.columns([1, 2])
-    selected_category = filter_col.selectbox(
-        t("Filter by category"),
-        ["All categories"] + saved_categories,
-        key="history_category",
-        format_func=category_option_label,
-    )
-    search_text = search_col.text_input(
-        t("Search expenses"),
-        placeholder=t("Search descriptions or categories"),
-        key="history_search",
-    ).strip().casefold()
+    with st.expander(t("Find expenses"), expanded=False):
+        st.caption(t("Choose a category or search descriptions to narrow this list."))
+        filter_col, search_col = st.columns([1, 2])
+        category_options = ["All categories"] + saved_categories
+        selected_category_label = filter_col.selectbox(
+            t("Filter by category"),
+            [category_option_label(value) for value in category_options],
+            key=category_widget_key("history_category", category_options),
+        )
+        selected_category = category_option_value(selected_category_label)
+        search_text = search_col.text_input(
+            t("Search expenses"),
+            placeholder=t("Search descriptions or categories"),
+            key="history_search",
+        ).strip().casefold()
+    search_text = search_text.strip().casefold()
 
     visible_expenses = [
         row for row in expenses
@@ -476,18 +671,25 @@ with overview_tab:
                     t("Amount"),
                     format=f"{CURRENCY} %,.2f",
                 ),
-                t("Date"): st.column_config.DateColumn(t("Date"), format=date_format()),
+        **({} if st.session_state.get("language") == "دری" else {
+            t("Date"): st.column_config.DateColumn(t("Date"), format=date_format())
+        }),
             },
         )
         st.caption(t("Showing {visible} of {total} expenses.").format(visible=len(visible_expenses), total=len(expenses)))
     elif expenses:
         st.info(t("No expenses match those filters. Clear the search or choose another category."))
+        if st.button(t("Clear filters"), key="clear_history_filters"):
+            st.session_state[language_widget_key("history_category")] = category_option_label("All categories")
+            st.session_state.history_search = ""
+            st.rerun()
     else:
         st.info(t("No expenses yet. Add your first one from Quick add."))
         st.caption(t("You can also use the Manage expenses tab for a detailed entry."))
 
 with analytics_tab:
     st.subheader(t("Spending patterns"))
+    st.caption(t("Choose a monthly view to see totals, category details, or compare income with spending."))
     if category_totals:
         st.markdown("#### " + t("Spending by category"))
         category_frame = pd.DataFrame(
@@ -510,13 +712,14 @@ with analytics_tab:
 
     if spending_month_totals or income_month_totals:
         st.markdown("#### " + t("Monthly spending"))
-        monthly_view = st.radio(
+        monthly_chart_options = ["Total spending", "Spending by category", "Income vs spending"]
+        monthly_view_label = st.radio(
             t("Monthly chart"),
-            ["Total spending", "Spending by category", "Income vs spending"],
+            [t(option) for option in monthly_chart_options],
             horizontal=True,
-            key="monthly_chart_view",
-            format_func=t,
+            key=language_widget_key("monthly_chart_view"),
         )
+        monthly_view = source_option(monthly_view_label)
         if monthly_view == "Total spending":
             monthly_frame = pd.DataFrame([
                 {t("Month"): month_label(row[0]), t("Spending"): float(row[1] or 0)}
@@ -556,12 +759,12 @@ with analytics_tab:
 
     st.markdown("#### " + t("Explore a date range"))
     range_col1, range_col2 = st.columns(2)
-    start_date = range_col1.date_input(
+    start_date = app_date_input(
         t("From"),
         value=date.today().replace(day=1),
         key="filter_start_date",
     )
-    end_date = range_col2.date_input(
+    end_date = app_date_input(
         t("Through"),
         value=date.today(),
         key="filter_end_date",
@@ -586,9 +789,11 @@ with analytics_tab:
                         t("Amount"): st.column_config.NumberColumn(
                             t("Amount"), format=f"{CURRENCY} %.2f"
                         ),
-                        t("Date"): st.column_config.DateColumn(
-                            t("Date"), format=date_format()
-                        ),
+                        **({} if st.session_state.get("language") == "دری" else {
+                            t("Date"): st.column_config.DateColumn(
+                                t("Date"), format=date_format()
+                            )
+                        }),
                     },
                 )
         else:
@@ -601,7 +806,7 @@ with analytics_tab:
         if daily_results:
             daily_frame = pd.DataFrame(
                 [
-                    {t("Date"): row[0], t("Daily spending"): float(row[1] or 0)}
+                    {t("Date"): display_date(row[0]), t("Daily spending"): float(row[1] or 0)}
                     for row in daily_results
                 ]
             )
@@ -617,23 +822,37 @@ with analytics_tab:
 
 with income_tab:
     st.subheader(t("Monthly income"))
-    st.caption(t("Record each income source for a month. Multiple entries are added together in your balance."))
-    income_month = st.date_input(t("Income month"), value=date.today().replace(day=1), key="income_month")
-    income_month = income_month.replace(day=1)
+    st.caption(t("Income is for the selected month. Add each source separately; the app adds them together."))
+    income_month = app_date_input(
+        t("Income month"), value=date.today(), key="income_month", month_only=True
+    )
+    is_jalali = st.session_state.get("language") == "دری"
+    if not is_jalali:
+        income_month = income_month.replace(day=1)
+        income_period_end = None
+    else:
+        _, income_period_end = jalali_month_bounds(income_month)
     with st.form("add_income_form"):
         income_source = st.text_input(t("Source"), max_chars=80, placeholder=t("e.g. Salary, freelance work"))
         income_amount = st.number_input(t("Amount"), min_value=0.01, step=1.0, format="%.2f", key="income_amount")
         income_submitted = st.form_submit_button(t("Add income"), type="primary")
     if income_submitted:
-        if not validate_income(income_amount, income_month, income_source):
+        if not validate_income(income_amount, income_month, income_source, exact=is_jalali):
             st.error(t("Enter a positive amount and an income source of 1–80 characters."))
-        elif add_monthly_income(income_amount, income_month, income_source):
+        elif add_monthly_income(income_amount, income_month, income_source, exact=is_jalali):
             st.toast(t("Income added successfully."), icon="✅")
             st.rerun()
         else:
             st.error(t("Could not save income. Check the database connection and confirm income.sql has been applied."))
-    month_income_rows = get_monthly_income_entries(income_month)
-    st.metric(t("Total income · {month}").format(month=format_month(income_month)), money(get_monthly_income_total(income_month)))
+    month_income_rows = get_monthly_income_entries(
+        income_month, exact=is_jalali, period_end=income_period_end
+    )
+    st.metric(
+        t("Total income · {month}").format(month=format_month(income_month)),
+        money(get_monthly_income_total(
+            income_month, exact=is_jalali, period_end=income_period_end
+        )),
+    )
     if month_income_rows:
         st.dataframe([{t("Source"): row[1], t("Amount"): float(row[2])} for row in month_income_rows], use_container_width=True, hide_index=True, column_config={t("Amount"): st.column_config.NumberColumn(t("Amount"), format=f"{CURRENCY} %,.2f")})
         income_options = {f"{row[1]} · {money(row[2])}": row[0] for row in month_income_rows}
@@ -649,12 +868,31 @@ with income_tab:
         st.info(t("No income recorded for this month. Add salary or another source above."))
 
 with manage_tab:
+    st.caption(t("Manage your expenses here. Add a new record, update an existing one, or delete it after confirmation."))
     add_tab, update_tab, delete_tab = st.tabs(
         [t("Add expense"), t("Update expense"), t("Delete expense")]
     )
 
     with add_tab:
         st.markdown("#### " + t("Add a detailed expense"))
+        st.caption(t("Choose a category. The extra field appears only when you create a new category."))
+        # Prefer an existing category; users can still choose the final "new" option.
+        category_options = saved_categories + [NEW_CATEGORY]
+        category_choice_label = st.selectbox(
+            t("Category"),
+            [category_option_label(value) for value in category_options],
+            key=category_widget_key("add_category_choice", category_options),
+        )
+        category_choice = category_option_value(category_choice_label)
+        if category_choice == NEW_CATEGORY:
+            custom_category = st.text_input(
+                t("New category (when creating one)"),
+                max_chars=40,
+                key="add_custom_category",
+            )
+        else:
+            custom_category = ""
+        expense_date = app_date_input(t("Date"), value=date.today(), key="add_date")
         with st.form("add_expense_form"):
             amount = st.number_input(
                 t("Amount"),
@@ -663,27 +901,11 @@ with manage_tab:
                 format="%.2f",
                 key="add_amount",
             )
-            expense_date = st.date_input(
-                t("Date"),
-                value=date.today(),
-                key="add_date",
-            )
             reason = st.text_input(
                 t("What was it for?"),
                 max_chars=100,
                 placeholder=t("e.g. Groceries"),
                 key="add_reason",
-            )
-            category_choice = st.selectbox(
-                t("Category"),
-                [NEW_CATEGORY] + saved_categories,
-                key="add_category_choice",
-                format_func=category_option_label,
-            )
-            custom_category = st.text_input(
-                t("New category (when creating one)"),
-                max_chars=40,
-                key="add_custom_category",
             )
             submitted = st.form_submit_button(t("Save expense"), type="primary")
         if submitted:
@@ -710,7 +932,7 @@ with manage_tab:
             st.info(t("Add an expense first; it will appear here for editing."))
         else:
             expense_options = {
-                f"{row[2]} · {category_label(row[4])} · {money(row[1])} · {row[3] or t('No description')}": row
+                f"{display_date(row[2])} · {category_label(row[4])} · {money(row[1])} · {row[3] or t('No description')}": row
                 for row in expenses
             }
             selected_label = st.selectbox(
@@ -719,6 +941,28 @@ with manage_tab:
                 key="update_expense_select",
             )
             selected_expense = expense_options[selected_label]
+            st.caption(t("Choose a category. The extra field appears only when you create a new category."))
+            existing_categories = list(saved_categories)
+            if selected_expense[4] not in existing_categories:
+                existing_categories.append(selected_expense[4])
+            update_category_options = [selected_expense[4]] + [
+                value for value in existing_categories if value != selected_expense[4]
+            ] + [NEW_CATEGORY]
+            update_category_choice_label = st.selectbox(
+                t("Category"),
+                [category_option_label(value) for value in update_category_options],
+                key=category_widget_key("update_category_choice", update_category_options),
+            )
+            update_category_choice = category_option_value(update_category_choice_label)
+            if update_category_choice == NEW_CATEGORY:
+                st.text_input(
+                    t("New category (when creating one)"),
+                    max_chars=40,
+                    key="update_custom_category",
+                )
+            new_date = app_date_input(
+                t("Date"), value=selected_expense[2], key="update_date"
+            )
             with st.form("update_expense_form"):
                 new_amount = st.number_input(
                     t("Amount"),
@@ -728,38 +972,18 @@ with manage_tab:
                     format="%.2f",
                     key="update_amount",
                 )
-                new_date = st.date_input(
-                    t("Date"),
-                    value=selected_expense[2],
-                    key="update_date",
-                )
                 new_reason = st.text_input(
                     t("What was it for?"),
                     value=selected_expense[3] or "",
                     max_chars=100,
                     key="update_reason",
                 )
-                existing_categories = list(saved_categories)
-                if selected_expense[4] not in existing_categories:
-                    existing_categories.append(selected_expense[4])
-                update_category_choice = st.selectbox(
-                    t("Category"),
-                    [NEW_CATEGORY] + existing_categories,
-                    index=existing_categories.index(selected_expense[4]) + 1,
-                    key="update_category_choice",
-                    format_func=category_option_label,
-                )
-                new_custom_category = st.text_input(
-                    t("New category (when creating one)"),
-                    max_chars=40,
-                    key="update_custom_category",
-                )
                 update_submitted = st.form_submit_button(
                     t("Save changes"), type="primary"
                 )
             if update_submitted:
                 new_category = (
-                    new_custom_category.strip()
+                    st.session_state.get("update_custom_category", "").strip()
                     if update_category_choice == NEW_CATEGORY
                     else update_category_choice
                 )

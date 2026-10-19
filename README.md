@@ -12,13 +12,14 @@ A Streamlit app for recording expenses, managing categories, and exploring spend
 - Switch monthly charts between total spending, category breakdown, and income versus spending; review color-coded category and daily trends
 - Set a display currency with the EXPENSE_CURRENCY environment variable
 - Switch the interface between English and Dari; Dari mode uses a right-to-left layout
+- Use the Afghan Solar Hijri calendar throughout Dari mode, with Afghan month names
 
 ## Requirements
 
 - Python 3.10 or newer
 - MySQL 8 or MariaDB 10.4 or newer
 - A database user permitted to read, insert, update, and delete records in expense_tracker
-- Python packages: streamlit, pandas, mysql-connector-python, and matplotlib (matplotlib is needed for the optional command-line charts)
+- Python packages: streamlit, pandas, mysql-connector-python, jdatetime, and matplotlib (matplotlib is needed for the optional command-line charts)
 
 ## Setup
 
@@ -33,7 +34,7 @@ A Streamlit app for recording expenses, managing categories, and exploring spend
 3. Install the packages listed above directly from this README:
 
    ~~~powershell
-   python -m pip install "streamlit>=1.30" "pandas>=2.0" "mysql-connector-python>=8.0" "matplotlib>=3.7"
+   python -m pip install "streamlit>=1.30" "pandas>=2.0" "mysql-connector-python>=8.0" "jdatetime>=6.1.1" "matplotlib>=3.7"
    ~~~
 
 4. Create the database and expense table. For a fresh database, import expenses.sql with your MySQL/MariaDB client. That file includes example rows; remove its INSERT section if you want an empty database. Or create the schema manually:
@@ -83,7 +84,7 @@ Choose a month on the Overview tab, then add salary or any other income source i
 
 ## Language
 
-Use the **Language** selector in the sidebar to switch between English and Dari (دری). The choice stays active during the current app session. Dari mode translates the app controls, guidance, chart and table labels, standard category names, notifications, and empty states, and aligns the interface right-to-left. It uses the Vazir font from jsDelivr, with local sans-serif fallbacks if the font CDN is unavailable. User-created category names, income sources, and expense descriptions remain as entered.
+Use the **Language** selector in the sidebar to switch between English and Dari (دری). The choice stays active during the current app session. Dari mode translates the app controls, guidance, chart and table labels, standard category names, notifications, and empty states, and aligns the interface right-to-left. Dates in Dari mode use the Afghan Solar Hijri calendar and Afghan month names: حمل، ثور، جوزا، سرطان، اسد، سنبله، میزان، عقرب، قوس، جدی، دلو، حوت. Date entry, expense history, date-range filters, income months, monthly summaries, and analytics use those calendar months. The app converts selected dates to Gregorian dates for storage, so existing expense records and database schemas need no migration. English mode continues to use Gregorian dates. It uses the Vazir font from jsDelivr, with local sans-serif fallbacks if the font CDN is unavailable. User-created category names, income sources, and expense descriptions remain as entered.
 
 ## Screenshots for GitHub
 
