@@ -19,7 +19,7 @@ A Streamlit app for recording expenses, managing categories, and exploring spend
 - Python 3.10 or newer
 - MySQL 8 or MariaDB 10.4 or newer
 - A database user permitted to read, insert, update, and delete records in expense_tracker
-- Python packages: streamlit, pandas, mysql-connector-python, jdatetime, and matplotlib (matplotlib is needed for the optional command-line charts)
+- Python packages: streamlit, pandas, mysql-connector-python, and matplotlib (matplotlib is needed for the optional command-line charts)
 
 ## Setup
 
@@ -34,7 +34,7 @@ A Streamlit app for recording expenses, managing categories, and exploring spend
 3. Install the packages listed above directly from this README:
 
    ~~~powershell
-   python -m pip install "streamlit>=1.30" "pandas>=2.0" "mysql-connector-python>=8.0" "jdatetime>=6.1.1" "matplotlib>=3.7"
+   python -m pip install "streamlit>=1.30" "pandas>=2.0" "mysql-connector-python>=8.0" "matplotlib>=3.7"
    ~~~
 
 4. Create the database and expense table. For a fresh database, import expenses.sql with your MySQL/MariaDB client. That file includes example rows; remove its INSERT section if you want an empty database. Or create the schema manually:
