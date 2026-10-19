@@ -1006,7 +1006,7 @@ with manage_tab:
             st.info(t("There are no expenses to delete."))
         else:
             delete_options = {
-                f"{row[2]} · {category_label(row[4])} · {money(row[1])} · {row[3] or t('No description')}": row[0]
+                f"{display_date(row[2])} · {category_label(row[4])} · {money(row[1])} · {row[3] or t('No description')}": row[0]
                 for row in expenses
             }
             selected_delete_label = st.selectbox(

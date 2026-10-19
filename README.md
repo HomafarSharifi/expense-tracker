@@ -21,23 +21,31 @@ A Streamlit app for recording expenses, managing categories, and exploring spend
 - A database user permitted to read, insert, update, and delete records in expense_tracker
 - Python packages: streamlit, pandas, mysql-connector-python, and matplotlib (matplotlib is needed for the optional command-line charts)
 
-## Setup
+## First-time setup on Windows
 
 1. Clone or copy this repository and open PowerShell in the project folder.
-2. Create and activate a virtual environment:
+2. Install MySQL or MariaDB and start its Windows service (open **Services** from the Start menu if it is not running). Keep the database service running while using the tracker.
+3. Create and activate a virtual environment:
 
    ~~~powershell
    py -m venv .venv
    .venv\Scripts\Activate.ps1
    ~~~
 
-3. Install the packages listed above directly from this README:
+4. Install the packages listed above directly from this README:
 
    ~~~powershell
    python -m pip install "streamlit>=1.30" "pandas>=2.0" "mysql-connector-python>=8.0" "matplotlib>=3.7"
    ~~~
 
-4. Create the database and expense table. For a fresh database, import expenses.sql with your MySQL/MariaDB client. That file includes example rows; remove its INSERT section if you want an empty database. Or create the schema manually:
+5. Create the database and expense table. For a fresh install using the MySQL command-line client, run these commands from the project folder. The sample SQL inserts demo expenses; remove the INSERT section from a copy if you want an empty table:
+
+   ~~~powershell
+   mysql -u root -p -e "CREATE DATABASE expense_tracker CHARACTER SET utf8mb4;"
+   Get-Content .\expenses.sql | mysql -u root -p expense_tracker
+   ~~~
+
+   Or create the schema manually:
 
    ~~~sql
    CREATE DATABASE expense_tracker CHARACTER SET utf8mb4;
@@ -51,32 +59,61 @@ A Streamlit app for recording expenses, managing categories, and exploring spend
    );
    ~~~
 
-5. Create the monthly income table by running `income.sql` while connected to `expense_tracker`. This is safe for existing installations: it adds the income table and leaves all expense records untouched. For example, with the MySQL command-line client:
+6. Create the monthly income table by running `income.sql` while connected to `expense_tracker`. This is safe for existing installations: it adds the income table and leaves all expense records untouched. Run schema setup with a database administrator account:
 
    ~~~powershell
-   Get-Content .\income.sql | mysql -u expense_app -p expense_tracker
+   Get-Content .\income.sql | mysql -u root -p expense_tracker
    ~~~
 
-6. Configure the connection in PowerShell before launching the app:
+7. Create a dedicated account for the app after both tables exist. Run this as a database administrator and replace the example password:
+
+   ~~~sql
+   CREATE USER 'expense_app'@'localhost' IDENTIFIED BY 'choose-a-strong-local-password';
+   GRANT SELECT, INSERT, UPDATE, DELETE ON expense_tracker.* TO 'expense_app'@'localhost';
+   ~~~
+
+8. Copy the local secrets template and enter the dedicated account password in the ignored local file:
 
    ~~~powershell
-   $env:EXPENSE_DB_HOST = "localhost"
-   $env:EXPENSE_DB_PORT = "3306"
-   $env:EXPENSE_DB_USER = "expense_app"
-   $env:EXPENSE_DB_PASSWORD = "your-local-password"
-   $env:EXPENSE_DB_NAME = "expense_tracker"
-   $env:EXPENSE_CURRENCY = "AFN"
+   Copy-Item .\.streamlit\secrets.toml.example .\.streamlit\secrets.toml
+   notepad .\.streamlit\secrets.toml
    ~~~
 
-   The default connection is localhost:3306, user root, and database expense_tracker for local compatibility. Set a password in EXPENSE_DB_PASSWORD and prefer a dedicated database account. Never commit passwords or real expense data.
+   Set `EXPENSE_DB_HOST`, `EXPENSE_DB_PORT`, `EXPENSE_DB_USER`, `EXPENSE_DB_PASSWORD`, and `EXPENSE_DB_NAME` in that file. Environment variables with the same names take precedence. The app defaults to localhost and the `expense_tracker` database for compatibility, but a dedicated database account with a password is recommended. `.streamlit/secrets.toml` is ignored by Git; never commit passwords or real expense data.
 
-7. Start the web app:
+9. Start the web app:
 
    ~~~powershell
    streamlit run app.py
    ~~~
 
-   The optional command-line interface can be started with python main.py.
+   Keep that terminal open while using the app, then open the local address Streamlit prints. On later days, open PowerShell in the project folder, activate `.venv`, and run `streamlit run app.py`. The optional command-line interface can be started with `python main.py`.
+
+## Daily use
+
+1. Choose English or Dari in the sidebar. Dari uses Afghan Solar Hijri dates and month names; the database continues to store Gregorian dates.
+2. Use **Quick add** for a one-line expense, or **Manage expenses** for a detailed entry. Pick a saved category; choose the final “create new category” option only when needed.
+3. Add salary or other income in **Income** for the month you selected. The Overview shows income, spending, and the remaining balance for that month.
+4. Use **Find expenses** for a simple category filter or description search. Use Analytics for monthly comparisons or a date range.
+5. Review the selected expense and confirmation checkbox before deleting it. The app reports successful saves and deletions.
+
+## Back up and restore your data
+
+From the project folder with `.venv` active, create a backup before updates or database changes:
+
+~~~powershell
+python data_backup.py backup
+~~~
+
+The command saves both expenses and income as a UTF-8 JSON file in the ignored `backups/` folder. The JSON file is not encrypted and contains personal financial data. Copy it to a separate, private location (for example, an encrypted external drive or a private backup service); never commit or publicly upload it. The app does not send backups anywhere automatically.
+
+To restore, first create an empty `expenses` table and an empty `monthly_income` table in the target database, configure the app to connect to it, and run:
+
+~~~powershell
+python data_backup.py restore .\backups\expense-tracker-YYYYMMDD-HHMMSS.json
+~~~
+
+Restore validates the backup and refuses to run if either table already has records; this prevents an accidental overwrite. For a fresh restore database, create the tables using the schema in `expenses.sql` and `income.sql`. If you import `expenses.sql`, remove its sample `INSERT` section first so the target table is empty. To update an existing installation, back it up first, then apply `income.sql` only if the monthly income table is missing. The app code itself needs no schema migration for the Dari calendar.
 
 ## Monthly income and balance
 
@@ -93,7 +130,8 @@ For a polished project page, capture the Overview, Analytics, and Manage expense
 ## Ready-to-use checklist
 
 - [ ] Install Python dependencies and start MySQL/MariaDB.
-- [ ] Create the database and expenses table, then run `income.sql`.
-- [ ] Set the database environment variables.
-- [ ] Run the app and verify income, monthly balance, expense add/update/delete, filters, and analytics.
+- [ ] Create the database and tables, then run `income.sql`.
+- [ ] Copy `.streamlit/secrets.toml.example` to `.streamlit/secrets.toml` and set a password.
+- [ ] Start the app and confirm expenses, income, monthly balance, edits, deletions, filters, charts, and both calendars.
+- [ ] Create a backup and keep a copy in a private location outside the project folder.
 - [ ] Capture screenshots with fictional data before publishing.
