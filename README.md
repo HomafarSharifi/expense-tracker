@@ -12,7 +12,8 @@ A Streamlit app for recording expenses, managing categories, and exploring spend
 - Switch monthly charts between total spending, category breakdown, and income versus spending; review color-coded category and daily trends
 - Set a display currency with the EXPENSE_CURRENCY environment variable
 - Switch the interface between English and Dari; Dari mode uses a right-to-left layout
-- Use the Afghan Solar Hijri calendar throughout Dari mode, with Afghan month names
+- Independently choose Gregorian or Afghan Solar Hijri dates in either language
+- Use the computer's current system date and time; enable automatic internet time synchronization in the operating system to keep its clock accurate
 
 ## Requirements
 
@@ -91,7 +92,7 @@ A Streamlit app for recording expenses, managing categories, and exploring spend
 
 ## Daily use
 
-1. Choose English or Dari in the sidebar. Dari uses Afghan Solar Hijri dates and month names; the database continues to store Gregorian dates.
+1. Choose English or Dari in the sidebar, then choose Gregorian or Afghan Solar Hijri under **Calendar**. Both calendar types work in either language; the database always stores Gregorian dates.
 2. Use **Quick add** for a one-line expense, or **Manage expenses** for a detailed entry. Pick a saved category; choose the final “create new category” option only when needed.
 3. Add salary or other income in **Income** for the month you selected. The Overview shows income, spending, and the remaining balance for that month.
 4. Use **Find expenses** for a simple category filter or description search. Use Analytics for monthly comparisons or a date range.
@@ -119,9 +120,13 @@ Restore validates the backup and refuses to run if either table already has reco
 
 Choose a month on the Overview tab, then add salary or any other income source in the Income tab. Add separate entries for multiple sources; the app sums them automatically. The remaining amount is monthly income minus expenses recorded during that calendar month. If no income is recorded, the app treats income as zero and prompts you to add it. The Analytics tab lets you switch the monthly chart between total spending, spending by category, and income-versus-spending. Months are shown in chronological order.
 
+## Advanced settings
+
+Open **Advanced settings** in the sidebar to review the active currency and non-secret database connection details, see the connection status, and create a local JSON backup. Passwords are never displayed. The backup contains private, unencrypted financial data; keep it somewhere secure and outside Git. Configuration examples in the panel show where database settings belong and how to change the display currency. The UI stacks cards and controls on narrow screens and keeps tabs horizontally scrollable on phones.
+
 ## Language
 
-Use the **Language** selector in the sidebar to switch between English and Dari (دری). The choice stays active during the current app session. Dari mode translates the app controls, guidance, chart and table labels, standard category names, notifications, and empty states, and aligns the interface right-to-left. Dates in Dari mode use the Afghan Solar Hijri calendar and Afghan month names: حمل، ثور، جوزا، سرطان، اسد، سنبله، میزان، عقرب، قوس، جدی، دلو، حوت. Date entry, expense history, date-range filters, income months, monthly summaries, and analytics use those calendar months. The app converts selected dates to Gregorian dates for storage, so existing expense records and database schemas need no migration. English mode continues to use Gregorian dates. It uses the Vazir font from jsDelivr, with local sans-serif fallbacks if the font CDN is unavailable. User-created category names, income sources, and expense descriptions remain as entered.
+Use the **Language** selector in the sidebar to switch between English and Dari (دری), then choose a calendar directly below it. Both languages offer Gregorian and Afghan Solar Hijri dates, using the same year/month/day selectors for full dates. Overview and monthly income intentionally ask only for a month, so those controls omit the day. Solar Hijri uses Afghan month names: حمل، ثور، جوزا، سرطان، اسد، سنبله، میزان، عقرب، قوس، جدی، دلو، حوت. Date entry, expense history, date-range filters, income months, monthly summaries, and analytics follow the selected calendar. Switching calendars carries selected dates into the equivalent date in the other calendar. The app converts selected dates to Gregorian dates for storage, so existing expense records and database schemas need no migration. Dari keeps the right-to-left layout and Vazir font. The displayed clock and default dates come from the computer running the app; enable automatic time synchronization in that computer's operating system to keep it aligned with internet time. User-created category names, income sources, and expense descriptions remain as entered.
 
 ## Screenshots for GitHub
 

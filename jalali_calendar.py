@@ -87,6 +87,16 @@ def to_gregorian(year, month, day):
     return date(gy, month_index + 1, gregorian_day_number + 1)
 
 
+def calendar_date_to_gregorian(year, month, day, calendar):
+    """Parse widget values (including serialized strings) into a Gregorian date."""
+    year, month, day = int(year), int(month), int(day)
+    if calendar == "Gregorian":
+        return date(year, month, day)
+    if calendar == "Afghan Solar Hijri":
+        return to_gregorian(year, month, day)
+    raise ValueError("Unknown calendar type")
+
+
 def jalali_month_start(value):
     jalali = to_jalali(value)
     return to_gregorian(jalali.year, jalali.month, 1)

@@ -1,18 +1,21 @@
 import os
 from datetime import date, datetime, timedelta
+from decimal import Decimal
 
 import pandas as pd
 import streamlit as st
 
 from database_errors import database_error_help
+from data_backup import backup_database
+from database import get_public_connection_settings
 from jalali_calendar import (
     AFGHAN_MONTHS,
+    calendar_date_to_gregorian,
     format_jalali_date,
     format_jalali_month,
     jalali_month_bounds,
     jalali_month_days,
     month_key as jalali_month_key,
-    to_gregorian as jalali_to_gregorian,
     to_jalali,
 )
 from expenses import (
@@ -20,16 +23,11 @@ from expenses import (
     add_monthly_income,
     delete_expense,
     delete_monthly_income,
-    get_categories,
     get_expenses,
     get_income_and_spending_by_month,
     get_monthly_income_entries,
     get_monthly_income_total,
-    get_monthly_spending_totals,
-    get_monthly_spending_by_category,
-    get_spending_by_category,
     get_spending_by_date_range,
-    get_total_spending,
     update_expense,
     validate_expense,
     validate_income,
@@ -69,11 +67,44 @@ TRANSLATIONS = {
     "Could not save the expense. Check your database connection and try again.": "مصرف ثبت نشد. اتصال پایگاه داده را بررسی و دوباره تلاش کنید.",
     "Check the amount, date, category (1–40 characters), and reason (up to 100 characters).": "مقدار، تاریخ، دسته‌بندی (۱ تا ۴۰ نویسه) و توضیح (حداکثر ۱۰۰ نویسه) را بررسی کنید.",
     "Language": "زبان",
+    "Calendar": "تقویم",
+    "Gregorian": "میلادی",
+    "Afghan Solar Hijri": "هجری خورشیدی افغانستان",
+    "Current system date and time: {date} · {time}": "تاریخ و زمان سیستم: {date} · {time}",
+    "The app uses the system clock of the computer running it. Turn on automatic time synchronization in system settings to keep it aligned with internet time.": "برنامه از ساعت سیستم کمپیوتر اجراکنندهٔ خود استفاده می‌کند. برای هماهنگی با زمان اینترنت، همگام‌سازی خودکار ساعت را در تنظیمات سیستم روشن کنید.",
+    "January": "جنوری", "February": "فبروری", "March": "مارچ", "April": "اپریل",
+    "May": "می", "June": "جون", "July": "جولای", "August": "اگست",
+    "September": "سپتمبر", "October": "اکتوبر", "November": "نومبر", "December": "دسمبر",
     "Advanced settings": "تنظیمات پیشرفته",
+    "Display and database settings": "تنظیمات نمایش و پایگاه داده",
+    "Current currency": "واحد پول فعلی",
+    "Database connection": "اتصال پایگاه داده",
+    "Connected": "متصل است",
+    "Not connected": "وصل نیست",
+    "Retry database connection": "دوباره اتصال به پایگاه داده",
+    "Host": "میزبان",
+    "Port": "درگاه",
+    "Database": "پایگاه داده",
+    "Account": "حساب کاربری",
+    "The password is hidden. Edit .streamlit/secrets.toml to change connection settings.": "گذرواژه پنهان است. برای تغییر تنظیمات اتصال، فایل .streamlit/secrets.toml را ویرایش کنید.",
+    "Database settings are read from environment variables first, then from .streamlit/secrets.toml.": "تنظیمات پایگاه داده ابتدا از متغیرهای محیطی و سپس از فایل .streamlit/secrets.toml خوانده می‌شوند.",
+    "Currency display can be changed with EXPENSE_CURRENCY in the system environment.": "واحد پول نمایشی را می‌توانید با EXPENSE_CURRENCY در متغیرهای محیطی سیستم تغییر دهید.",
+    "Local data backup": "نسخهٔ پشتیبان محلی",
+    "A backup contains private financial records and is not encrypted. Keep it in a secure location.": "نسخهٔ پشتیبان شامل اطلاعات مالی خصوصی و رمزگذاری‌نشده است. آن را در جای امن نگهداری کنید.",
+    "Create backup": "ساخت نسخهٔ پشتیبان",
+    "Backup created: {filename}": "نسخهٔ پشتیبان ساخته شد: {filename}",
+    "Backup failed. Check the database connection and try again.": "ساخت نسخهٔ پشتیبان انجام نشد. اتصال پایگاه داده را بررسی و دوباره تلاش کنید.",
+    "Configuration help": "راهنمای تنظیمات",
     "Diagnostic": "تشخیص",
     "Could not connect to the configured MySQL server. Start MySQL/MariaDB and verify EXPENSE_DB_HOST and EXPENSE_DB_PORT.": "اتصال به سرور MySQL ممکن نشد. MySQL/MariaDB را روشن کرده و EXPENSE_DB_HOST و EXPENSE_DB_PORT را بررسی کنید.",
     "MySQL rejected the login. Verify EXPENSE_DB_USER and EXPENSE_DB_PASSWORD.": "ورود به MySQL رد شد. EXPENSE_DB_USER و EXPENSE_DB_PASSWORD را بررسی کنید.",
     "The configured database does not exist. Create expense_tracker or set EXPENSE_DB_NAME to the correct database.": "پایگاه دادهٔ تنظیم‌شده وجود ندارد. expense_tracker را بسازید یا EXPENSE_DB_NAME را درست تنظیم کنید.",
+    "The database account lacks permission for this database. Ask the database administrator to grant the app account access to expense_tracker.": "حساب پایگاه داده اجازهٔ دسترسی به این پایگاه داده را ندارد. از مدیر پایگاه داده بخواهید دسترسی حساب برنامه را به expense_tracker بدهد.",
+    "A database setting is invalid. Check that the database port and connection timeout are whole numbers.": "یکی از تنظیمات پایگاه داده نادرست است. بررسی کنید شمارهٔ درگاه و مهلت اتصال عدد صحیح باشند.",
+    "The app could not complete the database request. Refresh and try again; if it continues, review the database diagnostic.": "برنامه نتوانست درخواست پایگاه داده را تکمیل کند. صفحه را تازه و دوباره تلاش کنید؛ اگر مشکل ادامه داشت، پیام تشخیصی را بررسی کنید.",
+    "The database schema does not match this app version. Review the SQL setup instructions in README.md before changing any tables.": "ساختار پایگاه داده با نسخهٔ برنامه مطابقت ندارد. پیش از تغییر جدول‌ها، راهنمای نصب SQL در README.md را بررسی کنید.",
+    "The database was busy and cancelled this request. Refresh and try again.": "پایگاه داده مشغول بود و درخواست را لغو کرد. صفحه را تازه و دوباره تلاش کنید.",
+    "The connection to MySQL was interrupted. Check that the database server is running, then refresh and try again.": "اتصال به MySQL قطع شد. روشن بودن سرور پایگاه داده را بررسی کنید و سپس صفحه را تازه کنید.",
     "The monthly_income table is missing from the database the app connected to. Run income.sql against that same database.": "جدول monthly_income در پایگاه دادهٔ متصل‌شده وجود ندارد. فایل income.sql را روی همان پایگاه داده اجرا کنید.",
     "The expenses table is missing from the database the app connected to. Import expenses.sql, then run income.sql.": "جدول expenses در پایگاه دادهٔ متصل‌شده وجود ندارد. ابتدا expenses.sql و سپس income.sql را وارد کنید.",
     "The app could not read its data. Check the technical details below.": "برنامه نتوانست داده‌ها را بخواند. جزئیات فنی زیر را بررسی کنید.",
@@ -265,6 +296,59 @@ def source_option(label):
         label,
     )
 
+
+def sync_calendar_widget_state():
+    """Keep currently selected dates when changing the calendar selector."""
+    old_calendar = st.session_state.get(
+        "_previous_calendar_type", "Gregorian"
+    )
+    new_calendar = st.session_state.get("calendar_type", "Gregorian")
+    if old_calendar == new_calendar:
+        return
+    for key, month_only in (
+        ("quick_date", False), ("overview_month", True), ("filter_start_date", False),
+        ("filter_end_date", False), ("income_month", True), ("add_date", False),
+        ("update_date", False),
+    ):
+        if old_calendar == "Gregorian":
+            year = st.session_state.get(f"{key}_year")
+            month = st.session_state.get(f"{key}_month")
+            day = st.session_state.get(f"{key}_day")
+            try:
+                selected = calendar_date_to_gregorian(
+                    year, month, 1 if month_only else day, "Gregorian"
+                )
+            except (TypeError, ValueError, OverflowError):
+                # Repair stale/serialized widget values instead of crashing on a rerun.
+                selected = st.session_state.get(
+                    key, datetime.now().astimezone().date()
+                )
+                if not isinstance(selected, date):
+                    selected = datetime.now().astimezone().date()
+            solar = to_jalali(selected)
+            st.session_state[f"{key}_year"] = solar.year
+            st.session_state[f"{key}_month"] = solar.month
+            if not month_only:
+                st.session_state[f"{key}_day"] = solar.day
+        else:
+            year = st.session_state.get(f"{key}_year")
+            month = st.session_state.get(f"{key}_month")
+            day = 1 if month_only else st.session_state.get(f"{key}_day")
+            try:
+                gregorian = calendar_date_to_gregorian(
+                    year, month, day, "Afghan Solar Hijri"
+                )
+            except (TypeError, ValueError, OverflowError):
+                # Invalid state can remain after a calendar/month change; reset safely.
+                gregorian = datetime.now().astimezone().date()
+            if gregorian:
+                st.session_state[f"{key}_year"] = gregorian.year
+                st.session_state[f"{key}_month"] = gregorian.month
+                if not month_only:
+                    st.session_state[f"{key}_day"] = gregorian.day
+                st.session_state[key] = gregorian
+    st.session_state["_previous_calendar_type"] = new_calendar
+
 st.set_page_config(
     page_title=t("Expense Tracker"),
     page_icon="💰",
@@ -310,12 +394,85 @@ st.markdown(
             flex: none !important;
         }
     }
+    @media (max-width: 1024px) {
+        .block-container { padding-left: 1.25rem; padding-right: 1.25rem; }
+        [data-testid="stHorizontalBlock"] > [data-testid="column"] { min-width: 0 !important; }
+    }
+    @media (min-width: 769px) and (max-width: 1024px) {
+        [data-testid="stHorizontalBlock"] {
+            display: grid !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: .75rem;
+        }
+        [data-testid="stHorizontalBlock"] > [data-testid="column"] {
+            width: 100% !important; max-width: 100% !important; flex: none !important;
+        }
+    }
+    @media (max-width: 640px) {
+        .block-container { padding: .8rem .65rem 1.5rem; }
+        h1 { font-size: 1.65rem !important; line-height: 1.25 !important; }
+        h2 { font-size: 1.35rem !important; }
+        [data-baseweb="tab-list"] { overflow-x: auto !important; flex-wrap: nowrap !important; }
+        [data-baseweb="tab"] { flex: 0 0 auto !important; white-space: nowrap !important; }
+        [data-testid="stDataFrame"] { max-width: 100%; overflow-x: auto; }
+        div[data-testid="stForm"] { padding: .75rem; }
+        div.stButton > button, div.stFormSubmitButton > button { width: 100%; }
+    }
+    div[class*="st-key-update_expense_action"] button {
+        background: #2563eb !important; border-color: #2563eb !important; color: #fff !important;
+    }
+    div[class*="st-key-update_expense_action"] button:hover {
+        background: #1d4ed8 !important; border-color: #1d4ed8 !important;
+    }
+    div[class*="st-key-delete_expense_action"] button,
+    div[class*="st-key-delete_income_action"] button {
+        background: #dc2626 !important; border-color: #dc2626 !important; color: #fff !important;
+    }
+    div[class*="st-key-delete_expense_action"] button:hover,
+    div[class*="st-key-delete_income_action"] button:hover {
+        background: #b91c1c !important; border-color: #b91c1c !important;
+    }
+    div[class*="st-key-delete_expense_action"] button:disabled,
+    div[class*="st-key-delete_income_action"] button:disabled {
+        opacity: .48;
+    }
+    div[class*="st-key-update_expense_action"] button:focus-visible {
+        outline: 3px solid #93c5fd !important; outline-offset: 2px;
+    }
+    div[class*="st-key-delete_expense_action"] button:focus-visible,
+    div[class*="st-key-delete_income_action"] button:focus-visible {
+        outline: 3px solid #fca5a5 !important; outline-offset: 2px;
+    }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
 st.sidebar.selectbox(t("Language"), LANGUAGE_OPTIONS, key="language")
+if "calendar_type" not in st.session_state:
+    st.session_state.calendar_type = (
+        "Afghan Solar Hijri" if st.session_state.get("language") == "دری" else "Gregorian"
+    )
+st.sidebar.selectbox(
+    t("Calendar"),
+    ["Gregorian", "Afghan Solar Hijri"],
+    format_func=t,
+    key="calendar_type",
+    on_change=sync_calendar_widget_state,
+)
+st.session_state.setdefault("_previous_calendar_type", st.session_state.calendar_type)
+system_now = datetime.now().astimezone()
+system_date = (
+    format_jalali_date(system_now.date())
+    if st.session_state.calendar_type == "Afghan Solar Hijri"
+    else system_now.strftime("%Y-%m-%d")
+)
+st.sidebar.caption(
+    t("Current system date and time: {date} · {time}").format(
+        date=system_date, time=system_now.strftime("%H:%M %Z").strip()
+    )
+)
+st.sidebar.caption(t("The app uses the system clock of the computer running it. Turn on automatic time synchronization in system settings to keep it aligned with internet time."))
 sync_language_widget_state()
 if st.session_state.get("language") == "دری":
     st.markdown(
@@ -376,56 +533,77 @@ def money(value):
     return f"{CURRENCY} {float(value or 0):,.2f}"
 
 
+def uses_jalali_calendar():
+    """Calendar choice is independent from interface language."""
+    return st.session_state.get("calendar_type", "Gregorian") == "Afghan Solar Hijri"
+
+
 def month_label(value):
     """Format a YYYY-MM key for the charts while keeping the data order intact."""
+    year, month = (int(part) for part in str(value).split("-")[:2])
+    if uses_jalali_calendar():
+        return f"{AFGHAN_MONTHS[month - 1]} {year}"
     parsed = datetime.strptime(str(value), "%Y-%m")
-    if st.session_state.get("language", "English") == "دری":
-        return f"{AFGHAN_MONTHS[parsed.month - 1]} {parsed.year}"
     return parsed.strftime("%b %Y")
 
 
 def format_month(value, format_string="%B %Y"):
-    if st.session_state.get("language", "English") == "دری":
+    if uses_jalali_calendar():
         return format_jalali_month(value)
     return value.strftime(format_string)
 
 
 def date_format():
-    return "YYYY/MM/DD" if st.session_state.get("language") == "دری" else "MMM D, YYYY"
+    return "YYYY/MM/DD" if uses_jalali_calendar() else "MMM D, YYYY"
 
 
 def app_date_input(label, value, key, help=None, month_only=False):
-    """Use Afghan Jalali date parts in Dari mode and Gregorian picker in English."""
-    if st.session_state.get("language") != "دری":
-        return st.date_input(label, value=value, key=key, help=help)
-
-    selected = to_jalali(value)
+    """Use consistent year/month/day controls for either calendar and language."""
+    is_jalali = uses_jalali_calendar()
+    selected = to_jalali(value) if is_jalali else value
     columns = st.columns([2, 3] if month_only else [2, 3, 2])
     year_key, month_key = f"{key}_year", f"{key}_month"
     years = list(range(selected.year - 10, selected.year + 11))
-    year = columns[0].selectbox(
+    year = int(columns[0].selectbox(
         t("Year"), years, index=years.index(selected.year), key=year_key
+    ))
+    month_names = AFGHAN_MONTHS if is_jalali else (
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December",
     )
-    month = columns[1].selectbox(
+    month = int(columns[1].selectbox(
         t("Month"), range(1, 13), index=selected.month - 1,
-        format_func=lambda number: AFGHAN_MONTHS[number - 1], key=month_key,
-    )
+        format_func=lambda number: t(month_names[number - 1]), key=month_key,
+    ))
     if month_only:
-        return jalali_to_gregorian(year, month, 1)
+        return calendar_date_to_gregorian(
+            year, month, 1, "Afghan Solar Hijri" if is_jalali else "Gregorian"
+        )
 
-    days = jalali_month_days(year, month)
+    if is_jalali:
+        days = jalali_month_days(year, month)
+    else:
+        next_month = date(year + (month == 12), 1 if month == 12 else month + 1, 1)
+        days = (next_month - timedelta(days=1)).day
     day_key = f"{key}_day"
-    if day_key in st.session_state and st.session_state[day_key] > days:
-        st.session_state[day_key] = days
-    day = columns[2].selectbox(
+    try:
+        previous_day = int(st.session_state.get(day_key, selected.day))
+    except (TypeError, ValueError):
+        previous_day = selected.day
+    safe_day = min(max(previous_day, 1), days)
+    if day_key in st.session_state and st.session_state[day_key] != safe_day:
+        st.session_state[day_key] = safe_day
+    day = int(columns[2].selectbox(
         t("Day"), range(1, days + 1), index=min(selected.day, days) - 1,
         key=day_key,
+    ))
+    return calendar_date_to_gregorian(
+        year, month, day, "Afghan Solar Hijri" if is_jalali else "Gregorian"
     )
-    return jalali_to_gregorian(year, month, day)
 
 
 def display_date(value):
-    if st.session_state.get("language") == "دری":
+    if uses_jalali_calendar():
         return format_jalali_date(value)
     return value
 
@@ -437,6 +615,22 @@ def jalali_monthly_totals(expense_rows):
         totals[key] = totals.get(key, 0.0) + float(row[1] or 0)
         category_key = (key, row[4])
         by_category[category_key] = by_category.get(category_key, 0.0) + float(row[1] or 0)
+    return (
+        [(key, totals[key]) for key in sorted(totals)],
+        [(month, category, amount) for (month, category), amount in sorted(by_category.items())],
+    )
+
+
+def gregorian_monthly_totals(expense_rows):
+    """Build Gregorian monthly analytics from the already-loaded expense rows."""
+    totals, by_category = {}, {}
+    for row in expense_rows:
+        marker = row[2]
+        key = marker.strftime("%Y-%m") if hasattr(marker, "strftime") else str(marker)[:7]
+        amount = float(row[1] or 0)
+        totals[key] = totals.get(key, 0.0) + amount
+        category_key = (key, row[4])
+        by_category[category_key] = by_category.get(category_key, 0.0) + amount
     return (
         [(key, totals[key]) for key in sorted(totals)],
         [(month, category, amount) for (month, category), amount in sorted(by_category.items())],
@@ -470,14 +664,20 @@ def save_quick_expense():
         else selected_category
     )
     amount = st.session_state.quick_amount
-    if st.session_state.get("language") == "دری":
-        when = jalali_to_gregorian(
+    if uses_jalali_calendar():
+        when = calendar_date_to_gregorian(
             st.session_state.quick_date_year,
             st.session_state.quick_date_month,
             st.session_state.quick_date_day,
+            "Afghan Solar Hijri",
         )
     else:
-        when = st.session_state.quick_date
+        when = calendar_date_to_gregorian(
+            st.session_state.quick_date_year,
+            st.session_state.quick_date_month,
+            st.session_state.quick_date_day,
+            "Gregorian",
+        )
     reason = st.session_state.quick_reason.strip()
     if not expense_is_valid(amount, when, reason, category):
         st.session_state.quick_message = t(
@@ -493,12 +693,13 @@ def save_quick_expense():
     st.session_state.quick_success = success
     if success:
         st.session_state.quick_amount = 0.01
-        st.session_state.quick_date = date.today()
-        if st.session_state.get("language") == "دری":
-            current_jalali = to_jalali(date.today())
-            st.session_state.quick_date_year = current_jalali.year
-            st.session_state.quick_date_month = current_jalali.month
-            st.session_state.quick_date_day = current_jalali.day
+        current_date = datetime.now().astimezone().date()
+        st.session_state.quick_date = current_date
+        if uses_jalali_calendar():
+            current_date = to_jalali(current_date)
+        st.session_state.quick_date_year = current_date.year
+        st.session_state.quick_date_month = current_date.month
+        st.session_state.quick_date_day = current_date.day
         st.session_state[category_key] = category_option_label(NEW_CATEGORY)
         st.session_state.quick_custom_category = ""
         st.session_state.quick_reason = ""
@@ -507,15 +708,23 @@ def save_quick_expense():
 st.title("💰 " + t("Personal Expense Tracker"))
 st.caption(t("A clear view of where your money goes."))
 
+data_error = None
 try:
+    # One expense read feeds the cards, categories, and charts. This avoids opening
+    # several redundant database connections for aggregates of the same rows.
     expenses = get_expenses()
-    total_spending = get_total_spending()
-    category_totals = get_spending_by_category()
-    saved_categories = [row[0] for row in get_categories()]
-    monthly_results = get_monthly_spending_by_category()
-    spending_month_totals = get_monthly_spending_totals()
+    total_spending = sum((Decimal(str(row[1] or 0)) for row in expenses), Decimal("0"))
+    category_amounts = {}
+    saved_categories = sorted({row[4] for row in expenses if row[4] and row[4].strip()})
+    for row in expenses:
+        category_amounts[row[4]] = category_amounts.get(
+            row[4], Decimal("0")
+        ) + Decimal(str(row[1] or 0))
+    category_totals = sorted(
+        category_amounts.items(), key=lambda item: (-item[1], str(item[0] or ""))
+    )
     income_month_totals = get_income_and_spending_by_month()
-    if st.session_state.get("language") == "دری":
+    if uses_jalali_calendar():
         spending_month_totals, monthly_results = jalali_monthly_totals(expenses)
         income_totals = {}
         for marker, amount in income_month_totals:
@@ -523,6 +732,7 @@ try:
             income_totals[key] = income_totals.get(key, 0.0) + float(amount or 0)
         income_month_totals = sorted(income_totals.items())
     else:
+        spending_month_totals, monthly_results = gregorian_monthly_totals(expenses)
         income_totals = {}
         for marker, amount in income_month_totals:
             key = marker.strftime("%Y-%m") if hasattr(marker, "strftime") else str(marker)[:7]
@@ -530,9 +740,19 @@ try:
         income_month_totals = sorted(income_totals.items())
 except Exception as error:
     message, diagnostic = database_error_help(error)
-    st.error(t(message))
-    st.caption(f"{t('Diagnostic')}: {diagnostic}")
-    st.stop()
+    data_error = (message, diagnostic)
+    expenses = []
+    total_spending = Decimal("0")
+    category_totals = []
+    saved_categories = []
+    spending_month_totals = []
+    monthly_results = []
+    income_month_totals = []
+    income_totals = {}
+
+if data_error:
+    st.error(t(data_error[0]))
+    st.caption(f"{t('Diagnostic')}: {data_error[1]}")
 
 with st.sidebar:
     with st.expander(t("Quick add"), expanded=False):
@@ -551,7 +771,7 @@ with st.sidebar:
                 max_chars=40,
                 key="quick_custom_category",
             )
-        quick_date = app_date_input(t("Date"), value=date.today(), key="quick_date")
+        quick_date = app_date_input(t("Date"), value=datetime.now().astimezone().date(), key="quick_date")
         with st.form("quick_add_expense"):
             st.number_input(
                 t("Amount"),
@@ -579,7 +799,46 @@ with st.sidebar:
     st.divider()
     st.caption(t("Currency display: {currency}").format(currency=CURRENCY))
     with st.expander(t("Advanced settings"), expanded=False):
+        st.markdown("#### " + t("Display and database settings"))
+        st.metric(t("Current currency"), CURRENCY)
         st.caption(t("Change it with the EXPENSE_CURRENCY environment variable."))
+        st.markdown("##### " + t("Database connection"))
+        if data_error:
+            st.error(t("Not connected"))
+            if st.button(t("Retry database connection"), key="retry_database_connection"):
+                st.rerun()
+        else:
+            st.success(t("Connected"))
+        connection_settings = get_public_connection_settings()
+        setting_columns = st.columns(4)
+        for column, label, setting in zip(
+            setting_columns,
+            ("Host", "Port", "Database", "Account"),
+            ("host", "port", "database", "user"),
+        ):
+            column.metric(t(label), str(connection_settings[setting]))
+        st.caption(t("The password is hidden. Edit .streamlit/secrets.toml to change connection settings."))
+        st.markdown("##### " + t("Local data backup"))
+        st.caption(t("A backup contains private financial records and is not encrypted. Keep it in a secure location."))
+        if st.button(t("Create backup"), key="create_local_backup"):
+            try:
+                backup_path = backup_database()
+                st.success(t("Backup created: {filename}").format(filename=backup_path.name))
+            except Exception as error:
+                st.error(t("Backup failed. Check the database connection and try again."))
+                st.caption(f"{t('Diagnostic')}: {type(error).__name__}")
+        with st.expander(t("Configuration help"), expanded=False):
+            st.caption(t("Database settings are read from environment variables first, then from .streamlit/secrets.toml."))
+            st.code(
+                '# .streamlit/secrets.toml — never share your actual password\n'
+                'EXPENSE_DB_HOST = "localhost"\nEXPENSE_DB_PORT = "3306"\n'
+                'EXPENSE_DB_USER = "expense_app"\n'
+                'EXPENSE_DB_PASSWORD = "your-local-password"\n'
+                'EXPENSE_DB_NAME = "expense_tracker"',
+                language="toml",
+            )
+            st.caption(t("Currency display can be changed with EXPENSE_CURRENCY in the system environment."))
+            st.code('$env:EXPENSE_CURRENCY = "AFN"', language="powershell")
 
 overview_tab, analytics_tab, income_tab, manage_tab = st.tabs(
     [t("Overview"), t("Analytics"), t("Income"), t("Manage expenses")]
@@ -589,12 +848,12 @@ with overview_tab:
     st.subheader(t("Monthly money at a glance"))
     selected_month = app_date_input(
         t("Choose a month"),
-        value=date.today().replace(day=1),
+        value=datetime.now().astimezone().date().replace(day=1),
         key="overview_month",
         help=t("Choose a month to see that month's income and spending."),
         month_only=True,
     )
-    if st.session_state.get("language") == "دری":
+    if uses_jalali_calendar():
         month_start, month_end = jalali_month_bounds(selected_month)
     else:
         month_start = selected_month.replace(day=1)
@@ -603,9 +862,11 @@ with overview_tab:
         else:
             next_month = month_start.replace(month=month_start.month + 1)
         month_end = next_month - timedelta(days=1)
-    is_jalali = st.session_state.get("language") == "دری"
-    monthly_income = get_monthly_income_total(
-        month_start, exact=is_jalali, period_end=month_end if is_jalali else None
+    is_jalali = uses_jalali_calendar()
+    monthly_income = (
+        Decimal("0") if data_error else get_monthly_income_total(
+            month_start, exact=is_jalali, period_end=month_end if is_jalali else None
+        )
     )
     monthly_spending = sum(
         (row[1] or 0 for row in expenses if month_start <= row[2] <= month_end),
@@ -671,7 +932,7 @@ with overview_tab:
                     t("Amount"),
                     format=f"{CURRENCY} %,.2f",
                 ),
-        **({} if st.session_state.get("language") == "دری" else {
+        **({} if uses_jalali_calendar() else {
             t("Date"): st.column_config.DateColumn(t("Date"), format=date_format())
         }),
             },
@@ -761,12 +1022,12 @@ with analytics_tab:
     range_col1, range_col2 = st.columns(2)
     start_date = app_date_input(
         t("From"),
-        value=date.today().replace(day=1),
+        value=datetime.now().astimezone().date().replace(day=1),
         key="filter_start_date",
     )
     end_date = app_date_input(
         t("Through"),
-        value=date.today(),
+        value=datetime.now().astimezone().date(),
         key="filter_end_date",
     )
     if start_date > end_date:
@@ -789,7 +1050,7 @@ with analytics_tab:
                         t("Amount"): st.column_config.NumberColumn(
                             t("Amount"), format=f"{CURRENCY} %.2f"
                         ),
-                        **({} if st.session_state.get("language") == "دری" else {
+                        **({} if uses_jalali_calendar() else {
                             t("Date"): st.column_config.DateColumn(
                                 t("Date"), format=date_format()
                             )
@@ -799,9 +1060,8 @@ with analytics_tab:
         else:
             st.info(t("No expenses were recorded in this date range."))
 
-        daily_results = get_spending_by_date_range(
-            start_date.strftime("%Y-%m-%d"),
-            end_date.strftime("%Y-%m-%d"),
+        daily_results = [] if data_error else get_spending_by_date_range(
+            start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d")
         )
         if daily_results:
             daily_frame = pd.DataFrame(
@@ -824,9 +1084,9 @@ with income_tab:
     st.subheader(t("Monthly income"))
     st.caption(t("Income is for the selected month. Add each source separately; the app adds them together."))
     income_month = app_date_input(
-        t("Income month"), value=date.today(), key="income_month", month_only=True
+        t("Income month"), value=datetime.now().astimezone().date(), key="income_month", month_only=True
     )
-    is_jalali = st.session_state.get("language") == "دری"
+    is_jalali = uses_jalali_calendar()
     if not is_jalali:
         income_month = income_month.replace(day=1)
         income_period_end = None
@@ -844,12 +1104,12 @@ with income_tab:
             st.rerun()
         else:
             st.error(t("Could not save income. Check the database connection and confirm income.sql has been applied."))
-    month_income_rows = get_monthly_income_entries(
+    month_income_rows = [] if data_error else get_monthly_income_entries(
         income_month, exact=is_jalali, period_end=income_period_end
     )
     st.metric(
         t("Total income · {month}").format(month=format_month(income_month)),
-        money(get_monthly_income_total(
+        money(Decimal("0") if data_error else get_monthly_income_total(
             income_month, exact=is_jalali, period_end=income_period_end
         )),
     )
@@ -858,12 +1118,13 @@ with income_tab:
         income_options = {f"{row[1]} · {money(row[2])}": row[0] for row in month_income_rows}
         income_to_delete = st.selectbox(t("Remove an income entry"), list(income_options), key="income_delete_select")
         confirm_income_delete = st.checkbox(t("I understand this permanently deletes the selected income."), key="confirm_income_delete")
-        if st.button(t("Delete income"), disabled=not confirm_income_delete, key="delete_income_button"):
-            if delete_monthly_income(income_options[income_to_delete]):
-                st.toast(t("Income entry deleted."), icon="🗑️")
-                st.rerun()
-            else:
-                st.error(t("Could not delete income. Refresh and try again."))
+        with st.container(key="delete_income_action"):
+            if st.button(t("Delete income"), disabled=not confirm_income_delete, key="delete_income_button"):
+                if delete_monthly_income(income_options[income_to_delete]):
+                    st.toast(t("Income entry deleted."), icon="🗑️")
+                    st.rerun()
+                else:
+                    st.error(t("Could not delete income. Refresh and try again."))
     else:
         st.info(t("No income recorded for this month. Add salary or another source above."))
 
@@ -892,7 +1153,7 @@ with manage_tab:
             )
         else:
             custom_category = ""
-        expense_date = app_date_input(t("Date"), value=date.today(), key="add_date")
+        expense_date = app_date_input(t("Date"), value=datetime.now().astimezone().date(), key="add_date")
         with st.form("add_expense_form"):
             amount = st.number_input(
                 t("Amount"),
@@ -978,9 +1239,10 @@ with manage_tab:
                     max_chars=100,
                     key="update_reason",
                 )
-                update_submitted = st.form_submit_button(
-                    t("Save changes"), type="primary"
-                )
+                with st.container(key="update_expense_action"):
+                    update_submitted = st.form_submit_button(
+                        t("Save changes"), type="primary"
+                    )
             if update_submitted:
                 new_category = (
                     st.session_state.get("update_custom_category", "").strip()
@@ -1018,14 +1280,15 @@ with manage_tab:
                 t("I understand this permanently deletes the selected expense."),
                 key="confirm_delete",
             )
-            if st.button(
-                t("Delete expense"),
-                type="primary",
-                disabled=not confirm_delete,
-                key="delete_expense_button",
-            ):
-                if delete_expense(delete_options[selected_delete_label]):
-                    st.toast(t("Expense deleted."), icon="🗑️")
-                    st.rerun()
-                else:
-                    st.error(t("Could not delete the expense. Refresh and try again."))
+            with st.container(key="delete_expense_action"):
+                if st.button(
+                    t("Delete expense"),
+                    type="primary",
+                    disabled=not confirm_delete,
+                    key="delete_expense_button",
+                ):
+                    if delete_expense(delete_options[selected_delete_label]):
+                        st.toast(t("Expense deleted."), icon="🗑️")
+                        st.rerun()
+                    else:
+                        st.error(t("Could not delete the expense. Refresh and try again."))

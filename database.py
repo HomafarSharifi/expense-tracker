@@ -14,6 +14,16 @@ def _setting(name, default):
         return default
 
 
+def get_public_connection_settings():
+    """Return display-safe connection details without exposing the password."""
+    return {
+        "host": _setting("EXPENSE_DB_HOST", "localhost"),
+        "port": _setting("EXPENSE_DB_PORT", "3306"),
+        "user": _setting("EXPENSE_DB_USER", "root"),
+        "database": _setting("EXPENSE_DB_NAME", "expense_tracker"),
+    }
+
+
 def get_connection():
     """Create a MySQL connection from environment-based configuration."""
     return mysql.connector.connect(
