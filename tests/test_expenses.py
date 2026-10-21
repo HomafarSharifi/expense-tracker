@@ -1,196 +1,99 @@
+from datetime import date
 from decimal import Decimal
-from unittest import TestCase
-from unittest.mock import Mock, patch
+from pathlib import Path
+import tempfile
+import unittest
 
-import expenses
-from database_errors import database_error_help
+from expense_tracker.storage import ExpenseStore
+
+tempfile.tempdir = str(Path(__file__).resolve().parents[1] / ".test-tmp")
+Path(tempfile.tempdir).mkdir(exist_ok=True)
 
 
-class ExpenseValidationTests(TestCase):
-    def test_rejects_invalid_expenses(self):
-        values = [
-            (0, "2026-01-01", "", "Food"),
-            (-1, "2026-01-01", "", "Food"),
-            ("NaN", "2026-01-01", "", "Food"),
-            ("100000000", "2026-01-01", "", "Food"),
-            ("1.001", "2026-01-01", "", "Food"),
-            (1, "2026-02-30", "", "Food"),
-            (1, "2026-01-01", "", " "),
-            (1, "2026-01-01", "", "x" * 41),
-            (1, "2026-01-01", "x" * 101, "Food"),
-        ]
-        for expense in values:
-            with self.subTest(expense=expense):
-                self.assertFalse(expenses.validate_expense(*expense))
+class ExpenseStorageTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.store = ExpenseStore(Path(self.temporary.name) / "tracker.sqlite3")
 
-    def test_accepts_valid_expense(self):
-        self.assertTrue(
-            expenses.validate_expense(
-                Decimal("12.50"), "2026-01-31", None, " Food "
-            )
+    def tearDown(self):
+        self.temporary.cleanup()
+
+    def test_validates_amounts_and_dates_before_writing(self):
+        for amount in (0, -1, "NaN", "1.001", "bad"):
+            with self.subTest(amount=amount), self.assertRaises(ValueError):
+                self.store.add_expense(amount, "2026-01-01", "", "Food")
+        with self.assertRaises(ValueError):
+            self.store.add_expense(1, "2026-02-30", "", "Food")
+        self.assertEqual(self.store.count_expenses(), 0)
+
+    def test_pagination_and_sort_modes_are_stable(self):
+        for amount, day in ((5, "2026-01-01"), (20, "2026-01-03"), (10, "2026-01-02")):
+            self.store.add_expense(amount, day, "", "Food")
+        recent, total = self.store.page_expenses(1, 2, "recent")
+        self.assertEqual([row["date"] for row in recent], ["2026-01-03", "2026-01-02"])
+        self.assertEqual(total, 3)
+        self.assertEqual(self.store.page_expenses(2, 2, "recent")[0][0]["date"], "2026-01-01")
+        self.assertEqual(self.store.page_expenses(1, 2, "oldest")[0][0]["date"], "2026-01-01")
+        self.assertEqual(self.store.page_expenses(1, 2, "highest")[0][0]["amount"], Decimal("20"))
+        self.assertEqual(self.store.page_expenses(1, 2, "lowest")[0][0]["amount"], Decimal("5"))
+        with self.assertRaises(ValueError): self.store.page_expenses(sort="amount DESC; DROP TABLE expenses" )
+
+    def test_search_treats_sql_wildcards_as_literal_text(self):
+        self.store.add_expense(1, "2026-01-01", "100% present", "Home")
+        self.store.add_expense(1, "2026-01-01", "1000 present", "Home")
+        self.assertEqual(self.store.page_expenses(search="100%")[1], 1)
+        self.assertEqual(self.store.page_expenses(search="Home")[1], 2)
+
+    def test_income_month_summary_and_preferences(self):
+        self.store.add_expense("15.25", "2026-03-03", "Lunch", "Food")
+        self.store.add_expense("4.75", "2026-03-04", "Bus", "Travel")
+        self.store.add_income(50, "2026-03-01", "Salary")
+        summary = self.store.summary("2026-03-01")
+        self.assertEqual(summary["income"], Decimal("50"))
+        self.assertEqual(summary["spending"], Decimal("20"))
+        self.assertEqual(summary["remaining"], Decimal("30"))
+        self.assertEqual(self.store.page_months()[0][0]["month"], "2026-03")
+        self.assertEqual(self.store.page_income(search="sal")[1], 1)
+        self.assertEqual(self.store.page_months(search="2026-03")[1], 1)
+        self.store.set_preference("calendar", "Afghan Solar Hijri")
+        self.assertEqual(self.store.get_preference("calendar"), "Afghan Solar Hijri")
+        with self.assertRaises(ValueError): self.store.set_preference("password", "secret")
+
+    def test_solar_month_summary_and_income_use_actual_calendar_boundaries(self):
+        self.store.add_expense(10, "2024-03-20", "First day", "Home")
+        self.store.add_expense(20, "2024-04-19", "Last day", "Home")
+        self.store.add_expense(99, "2024-04-20", "Next month", "Home")
+        self.store.add_income(100, "2024-03-20", "Salary")
+        summary = self.store.summary("2024-03-20", period_start="2024-03-20", period_end="2024-04-19")
+        self.assertEqual(summary["income"], Decimal("100"))
+        self.assertEqual(summary["spending"], Decimal("30"))
+        months, count = self.store.page_months(calendar="Afghan Solar Hijri")
+        self.assertEqual(count, 2)
+        self.assertEqual({item["month"] for item in months}, {"1403-01", "1403-02"})
+        comparison = self.store.monthly_comparison("Afghan Solar Hijri")
+        self.assertEqual(comparison[0]["month"], "1403-01")
+        self.assertEqual(comparison[0]["income"], Decimal("100"))
+
+    def test_income_uses_selected_calendar_month_date_boundaries(self):
+        # A Gregorian month-start income belongs to the Solar Hijri month
+        # containing that date too, so changing display calendars keeps it visible.
+        self.store.add_income(42000, "2026-10-01", "Salary")
+        solar_month = self.store.summary(
+            "2026-09-23", period_start="2026-09-23", period_end="2026-10-22"
         )
-
-    def test_validates_date_ranges(self):
-        cases = [
-            ("2026-01-01", "2026-01-31", True),
-            ("2026-01-31", "2026-01-01", False),
-            ("2026-02-30", "2026-03-01", False),
-            ("bad", "2026-03-01", False),
-        ]
-        for start, end, expected in cases:
-            with self.subTest(start=start, end=end):
-                self.assertEqual(
-                    expenses.validate_date_range(start, end), expected
-                )
-
-    def test_validates_monthly_income(self):
-        self.assertTrue(expenses.validate_income("2500.00", "2026-01", "Salary"))
-        for amount, month, source in [
-            (0, "2026-01", "Salary"),
-            ("NaN", "2026-01", "Salary"),
-            ("1.001", "2026-01", "Salary"),
-            (1, "2026-13", "Salary"),
-            (1, "2026-01", " "),
-            (1, "2026-01", "x" * 81),
-        ]:
-            with self.subTest(amount=amount, month=month, source=source):
-                self.assertFalse(expenses.validate_income(amount, month, source))
-
-    def test_monthly_income_normalizes_date_to_month_start(self):
-        self.assertTrue(expenses.validate_income(1, "2026-01-31", "Salary"))
-        self.assertFalse(expenses.validate_income(1, "2026-02-30", "Salary"))
-
-
-class DatabaseErrorGuidanceTests(TestCase):
-    def test_identifies_missing_income_table(self):
-        error = RuntimeError("table missing")
-        error.errno = 1146
-        error.msg = "Table 'expense_tracker.monthly_income' doesn't exist"
-        message, diagnostic = database_error_help(error)
-        self.assertIn("monthly_income", message)
-        self.assertIn("Run income.sql", message)
-        self.assertIn("expense_tracker.monthly_income", diagnostic)
-
-    def test_identifies_missing_expenses_table(self):
-        error = RuntimeError("table missing")
-        error.errno = 1146
-        error.msg = "Table 'expense_tracker.expenses' doesn't exist"
-        message, _ = database_error_help(error)
-        self.assertIn("Import expenses.sql", message)
-
-    def test_gives_connection_guidance(self):
-        error = RuntimeError("connection unavailable")
-        error.errno = 2003
-        error.msg = "Can't connect"
-        message, _ = database_error_help(error)
-        self.assertIn("Start MySQL/MariaDB", message)
-
-
-class DatabaseOperationTests(TestCase):
-    def test_invalid_date_range_does_not_open_database(self):
-        with patch.object(expenses, "get_connection") as connect:
-            self.assertEqual(
-                expenses.get_spending_by_date_range(
-                    "2026-02-01", "2026-01-01"
-                ),
-                [],
-            )
-        connect.assert_not_called()
-
-    def test_add_commits_and_closes_resources(self):
-        cursor = Mock()
-        connection = Mock()
-        connection.cursor.return_value = cursor
-        with patch.object(expenses, "get_connection", return_value=connection):
-            self.assertTrue(
-                expenses.add_expense(12, "2026-01-01", "", " Food ")
-            )
-        connection.commit.assert_called_once()
-        cursor.close.assert_called_once()
-        connection.close.assert_called_once()
-        self.assertEqual(
-            cursor.execute.call_args.args[1],
-            (12, "2026-01-01", None, "Food"),
+        next_month = self.store.summary(
+            "2026-10-23", period_start="2026-10-23", period_end="2026-11-21"
         )
+        self.assertEqual(solar_month["income"], Decimal("42000"))
+        self.assertEqual(next_month["income"], Decimal("0"))
 
-    def test_add_failure_rolls_back_and_closes_resources(self):
-        cursor = Mock()
-        cursor.execute.side_effect = RuntimeError("database unavailable")
-        connection = Mock()
-        connection.cursor.return_value = cursor
-        with self.assertLogs("expenses", level="ERROR") as captured:
-            with patch.object(expenses, "get_connection", return_value=connection):
-                self.assertFalse(
-                    expenses.add_expense(12, "2026-01-01", "", "Food")
-                )
-        self.assertIn("RuntimeError", captured.output[0])
-        connection.rollback.assert_called_once()
-        cursor.close.assert_called_once()
-        connection.close.assert_called_once()
+    def test_update_delete_and_missing_record(self):
+        record_id = self.store.add_expense(10, date(2026, 1, 1), "", "Food")
+        self.store.update_expense(record_id, 11, "2026-01-02", "Bread", "Groceries")
+        self.assertEqual(self.store.get_expense(record_id)["amount"], Decimal("11"))
+        self.store.delete_expense(record_id)
+        self.assertIsNone(self.store.get_expense(record_id))
+        with self.assertRaises(LookupError): self.store.delete_expense(record_id)
 
-    def test_delete_missing_expense_does_not_commit(self):
-        cursor = Mock(rowcount=0)
-        connection = Mock()
-        connection.cursor.return_value = cursor
-        with patch.object(expenses, "get_connection", return_value=connection):
-            self.assertFalse(expenses.delete_expense(1))
-        connection.commit.assert_not_called()
 
-    def test_unchanged_update_of_existing_expense_succeeds(self):
-        cursor = Mock(rowcount=0)
-        cursor.fetchone.return_value = (1,)
-        connection = Mock()
-        connection.cursor.return_value = cursor
-        with patch.object(expenses, "get_connection", return_value=connection):
-            self.assertTrue(
-                expenses.update_expense(
-                    1, 12, "2026-01-01", "", "Food"
-                )
-            )
-        connection.commit.assert_called_once()
-
-    def test_add_income_commits_with_normalized_month_and_source(self):
-        cursor = Mock()
-        connection = Mock()
-        connection.cursor.return_value = cursor
-        with patch.object(expenses, "get_connection", return_value=connection):
-            self.assertTrue(expenses.add_monthly_income(2500, "2026-01-15", " Salary "))
-        connection.commit.assert_called_once()
-        self.assertEqual(cursor.execute.call_args.args[1], (expenses.date(2026, 1, 1), "Salary", 2500))
-        cursor.close.assert_called_once()
-        connection.close.assert_called_once()
-
-    def test_add_income_can_preserve_solar_month_start(self):
-        cursor = Mock()
-        connection = Mock()
-        connection.cursor.return_value = cursor
-        solar_month_start = expenses.date(2024, 3, 20)
-        with patch.object(expenses, "get_connection", return_value=connection):
-            self.assertTrue(
-                expenses.add_monthly_income(
-                    2500, solar_month_start, "Salary", exact=True
-                )
-            )
-        self.assertEqual(
-            cursor.execute.call_args.args[1], (solar_month_start, "Salary", 2500)
-        )
-        connection.commit.assert_called_once()
-
-    def test_invalid_income_does_not_open_database(self):
-        with patch.object(expenses, "get_connection") as connect:
-            self.assertFalse(expenses.add_monthly_income(0, "2026-01", "Salary"))
-        connect.assert_not_called()
-
-    def test_income_total_uses_month_first_day(self):
-        with patch.object(expenses, "_fetch_one", return_value=(Decimal("2500.00"),)) as fetch:
-            self.assertEqual(expenses.get_monthly_income_total("2026-01-31"), Decimal("2500.00"))
-        self.assertEqual(fetch.call_args.args[1], (expenses.date(2026, 1, 1),))
-
-    def test_income_total_can_query_solar_month_date_range(self):
-        start, end = expenses.date(2024, 3, 20), expenses.date(2024, 4, 19)
-        with patch.object(expenses, "_fetch_one", return_value=(Decimal("2500.00"),)) as fetch:
-            self.assertEqual(
-                expenses.get_monthly_income_total(start, exact=True, period_end=end),
-                Decimal("2500.00"),
-            )
-        self.assertEqual(fetch.call_args.args[1], (start, end))
+if __name__ == "__main__": unittest.main()

@@ -1,65 +1,20 @@
-import matplotlib.pyplot as plt
-from expenses import get_spending_over_time, get_spending_by_category, get_monthly_spending, get_spending_by_date_range
+"""Local chart generation helpers for scripts; no browser or database server."""
+from pathlib import Path
 
-def plot_spending_over_time():
-    rows = get_spending_over_time()
-    if not rows:
-        print("No expense data available.")
-        return
-    
-    dates = [row[0] for row in rows]
-    amounts = [float(row[1]) for row in rows]
-    plt.plot(dates, amounts, marker="o")
-    plt.title('Daily Spending Over Time')
-    plt.xlabel("Date")
-    plt.ylabel("Amount Spent")
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    plt.show()
+from expense_tracker.storage import ExpenseStore, default_data_dir
 
-def plot_spending_by_category():
-    rows = get_spending_by_category()
-    if not rows:
-        print("No expense data available.")
-        return
 
-    categories = [row[0] for row in rows]
-    amounts = [float(row[1]) for row in rows]
-    plt.figure(figsize=(8, 5))
-    plt.bar(categories, amounts)
-    plt.title("Spending by Category")
-    plt.xlabel("Category")
-    plt.ylabel("Total Amount")
-    plt.tight_layout()
-    plt.show()
-
-def plot_monthly_spending():
-    rows = get_monthly_spending()
-    if not rows:
-        print("No expense data available.")
-        return
-    months = [row[0] for row in rows]
-    amounts = [float(row[1]) for row in rows]
-    plt.figure(figsize=(8, 5))
-    plt.bar(months, amounts)
-    plt.title("Monthly Spending")
-    plt.xlabel("Months")
-    plt.ylabel("Total Amount")
-    plt.tight_layout()
-    plt.show()
-
-def plot_spending_by_date_range(start_date, end_date):
-    rows = get_spending_by_date_range(start_date, end_date)
-    if not rows:
-        print("No expense data available.")
-        return
-    dates = [row[0] for row in rows]
-    amounts = [float(row[1]) for row in rows]
-    plt.figure(figsize=(8, 5))
-    plt.plot(dates, amounts, marker="o")
-    plt.title("Spending by Date Range")
-    plt.xlabel("Dates")
-    plt.ylabel("Total Amount")
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    plt.show()
+def plot_monthly_spending(path=None):
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    rows = ExpenseStore().all_months()
+    if not rows: return None
+    target = Path(path) if path else default_data_dir() / "monthly-spending.png"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fig, ax = plt.subplots(figsize=(9, 5))
+    colors = ["#176b72", "#2a9d8f", "#e9c46a", "#f4a261", "#e76f51"]
+    ax.bar([r["month"] for r in rows], [float(r["spending"]) for r in rows], color=[colors[i % len(colors)] for i in range(len(rows))])
+    ax.set_title("Monthly Spending"); ax.set_ylabel("AFN"); ax.tick_params(axis="x", rotation=45)
+    fig.tight_layout(); fig.savefig(target); plt.close(fig)
+    return target

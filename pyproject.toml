@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "afghan-expense-tracker"
+version = "2.0.0"
+description = "Offline-first expense and income tracker for Windows, Dari, and English"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+desktop = ["PySide6-Essentials>=6.8,<7", "matplotlib>=3.8,<4", "arabic-reshaper>=3.0,<4", "python-bidi>=0.6,<1"]
+build = ["PySide6-Essentials>=6.8,<7", "matplotlib>=3.8,<4", "arabic-reshaper>=3.0,<4", "python-bidi>=0.6,<1", "pyinstaller>=6.10,<7"]
+
+[project.scripts]
+expense-tracker = "expense_tracker.cli:run"
+
+[tool.setuptools]
+packages = ["expense_tracker"]
+py-modules = ["jalali_calendar"]
+
+
+

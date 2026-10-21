@@ -1,142 +1,157 @@
-# Personal Expense Tracker
+<div align="center">
 
-A Streamlit app for recording expenses, managing categories, and exploring spending trends stored in MySQL or MariaDB.
+<img src="assets/expense-tracker-logo.svg" alt="Expense Tracker logo" width="112" />
 
-## Features
+# Expense Tracker
 
-- Add, update, and delete expenses with clear confirmation and feedback
-- Record monthly income from multiple sources and see the month's income, spending, and remaining balance
-- Quick add from the sidebar while viewing any page
-- Reuse saved categories or create a new one
-- Search and filter expense history
-- Switch monthly charts between total spending, category breakdown, and income versus spending; review color-coded category and daily trends
-- Set a display currency with the EXPENSE_CURRENCY environment variable
-- Switch the interface between English and Dari; Dari mode uses a right-to-left layout
-- Independently choose Gregorian or Afghan Solar Hijri dates in either language
-- Use the computer's current system date and time; enable automatic internet time synchronization in the operating system to keep its clock accurate
+**Know what came in, what went out, and what remains.**
 
-## Requirements
+An offline-first expense and income tracker for Windows, with English, Dari, AFN, and the Afghan Solar Hijri calendar.
 
-- Python 3.10 or newer
-- MySQL 8 or MariaDB 10.4 or newer
-- A database user permitted to read, insert, update, and delete records in expense_tracker
-- Python packages: streamlit, pandas, mysql-connector-python, and matplotlib (matplotlib is needed for the optional command-line charts)
+[Download for Windows](https://github.com/HomafarSharifi/expense-tracker/releases/latest) · [Report a problem](https://github.com/HomafarSharifi/expense-tracker/issues) · [Explore the source](#for-developers-and-cli-users)
 
-## First-time setup on Windows
+![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-176b72?logo=windows&logoColor=white)
+![Languages](https://img.shields.io/badge/English-Dari-176b72)
+![Storage](https://img.shields.io/badge/data-local%20SQLite-176b72)
+![License](https://img.shields.io/badge/license-MIT-176b72)
 
-1. Clone or copy this repository and open PowerShell in the project folder.
-2. Install MySQL or MariaDB and start its Windows service (open **Services** from the Start menu if it is not running). Keep the database service running while using the tracker.
-3. Create and activate a virtual environment:
+</div>
 
-   ~~~powershell
-   py -m venv .venv
-   .venv\Scripts\Activate.ps1
-   ~~~
+---
 
-4. Install the packages listed above directly from this README:
+## Your money, at a glance
 
-   ~~~powershell
-   python -m pip install "streamlit>=1.50" "pandas>=2.0" "mysql-connector-python>=8.0" "matplotlib>=3.7"
-   ~~~
+Record income and spending, see the month’s remaining balance, and understand where money goes. Records stay on your computer; the app does not need a MySQL server, a cloud account, or an internet connection for daily use.
 
-5. Create the database and expense table. For a fresh install using the MySQL command-line client, run these commands from the project folder. The sample SQL inserts demo expenses; remove the INSERT section from a copy if you want an empty table:
+### Made for everyday use
 
-   ~~~powershell
-   mysql -u root -p -e "CREATE DATABASE expense_tracker CHARACTER SET utf8mb4;"
-   Get-Content .\expenses.sql | mysql -u root -p expense_tracker
-   ~~~
+- **Simple setup:** install the Windows app and open it. No separate Python or database installation.
+- **Income and expenses:** track salary and other income alongside day-to-day spending.
+- **Monthly overview:** compare income, spending, remaining balance, and category totals.
+- **Find records quickly:** search, choose a page size, and sort by newest, oldest, highest amount, or lowest amount.
+- **English or Dari:** switch language and choose Gregorian or Afghan Solar Hijri dates.
+- **Take your information with you:** create a backup, export tables, print a report, or save a PDF.
+- **Works offline:** data is stored locally in a SQLite database under your Windows user profile.
 
-   Or create the schema manually:
+> **Windows download:** [Get the latest Setup.exe](https://github.com/HomafarSharifi/expense-tracker/releases/latest). Choose the `ExpenseTracker-Setup-...-x64.exe` file under **Assets**. The setup is per-user and does not require administrator access.
 
-   ~~~sql
-   CREATE DATABASE expense_tracker CHARACTER SET utf8mb4;
-   USE expense_tracker;
-   CREATE TABLE expenses (
-       id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-       amount DECIMAL(10, 2) NOT NULL,
-       date DATE NOT NULL,
-       reason VARCHAR(100),
-       category VARCHAR(40) NOT NULL
-   );
-   ~~~
+### First launch
 
-6. Create the monthly income table by running `income.sql` while connected to `expense_tracker`. This is safe for existing installations: it adds the income table and leaves all expense records untouched. Run schema setup with a database administrator account:
+1. Download and run the latest Windows setup file from [Releases](https://github.com/HomafarSharifi/expense-tracker/releases).
+2. If Windows displays a SmartScreen message, check that the file came from this repository’s Releases page. This project’s installer is not code-signed yet, so Windows may show a warning for a new download.
+3. Open **Expense Tracker** from the Start menu, choose your language and calendar in **Settings**, then add income or an expense.
+4. Use **Overview** to follow the current month. Use the table controls to change sorting, page size, and page.
 
-   ~~~powershell
-   Get-Content .\income.sql | mysql -u root -p expense_tracker
-   ~~~
+### Bring data from the previous MySQL version
 
-7. Create a dedicated account for the app after both tables exist. Run this as a database administrator and replace the example password:
+Keep the old MySQL database running while migrating. From this project folder, run the one-time, read-only exporter below. It needs the old database credentials and `mysql-connector-python`; MySQL is not a dependency of the new app. It asks for the password without displaying it, reads the two old tables, and writes a private JSON file. Install the new app, open **Settings → Restore backup**, and select that file. Restore works only for a new, empty profile so existing records are not overwritten by accident.
 
-   ~~~sql
-   CREATE USER 'expense_app'@'localhost' IDENTIFIED BY 'choose-a-strong-local-password';
-   GRANT SELECT, INSERT, UPDATE, DELETE ON expense_tracker.* TO 'expense_app'@'localhost';
-   ~~~
+```powershell
+python -m pip install mysql-connector-python
+python tools\migrate_mysql_v1.py --output .\legacy-backup.json
+```
 
-8. Copy the local secrets template and enter the dedicated account password in the ignored local file:
+The exporter defaults to `localhost:3306` and `expense_tracker`. Use `--host`, `--port`, `--user`, or `--database` if your old setup differs. Do not publish or commit the resulting JSON backup.
 
-   ~~~powershell
-   Copy-Item .\.streamlit\secrets.toml.example .\.streamlit\secrets.toml
-   notepad .\.streamlit\secrets.toml
-   ~~~
+### A quick look
 
-   Set `EXPENSE_DB_HOST`, `EXPENSE_DB_PORT`, `EXPENSE_DB_USER`, `EXPENSE_DB_PASSWORD`, and `EXPENSE_DB_NAME` in that file. Environment variables with the same names take precedence. The app defaults to localhost and the `expense_tracker` database for compatibility, but a dedicated database account with a password is recommended. `.streamlit/secrets.toml` is ignored by Git; never commit passwords or real expense data.
+These screenshots come from the running desktop interface and use fictional sample records.
 
-9. Start the web app:
+<div align="center">
 
-   ~~~powershell
-   streamlit run app.py
-   ~~~
+<img src="screenshots/overview.png" alt="Expense Tracker monthly overview with income, spending, remaining balance, and a paginated expense list" width="860" />
 
-   Keep that terminal open while using the app, then open the local address Streamlit prints. On later days, open PowerShell in the project folder, activate `.venv`, and run `streamlit run app.py`. The optional command-line interface can be started with `python main.py`.
+<img src="screenshots/analytics.png" alt="Color-coded monthly income and spending graph with a paginated summary" width="860" />
 
-## Daily use
+<img src="screenshots/dari-analytics.png" alt="Monthly income and spending chart displayed in Dari with Afghan Solar Hijri months" width="860" />
 
-1. Choose English or Dari in the sidebar, then choose Gregorian or Afghan Solar Hijri under **Calendar**. Both calendar types work in either language; the database always stores Gregorian dates.
-2. Use **Quick add** for a one-line expense, or **Manage expenses** for a detailed entry. Pick a saved category; choose the final “create new category” option only when needed.
-3. Add salary or other income in **Income** for the month you selected. The Overview shows income, spending, and the remaining balance for that month.
-4. Use **Find expenses** for a simple category filter or description search. Use Analytics for monthly comparisons or a date range.
-5. Review the selected expense and confirmation checkbox before deleting it. The app reports successful saves and deletions.
+<img src="screenshots/dari-overview.png" alt="Expense Tracker overview in Dari with right-to-left layout and Afghan Solar Hijri calendar" width="860" />
 
-## Back up and restore your data
+</div>
 
-From the project folder with `.venv` active, create a backup before updates or database changes:
+---
 
-~~~powershell
-python data_backup.py backup
-~~~
+## For developers and CLI users
 
-The command saves both expenses and income as a UTF-8 JSON file in the ignored `backups/` folder. The JSON file is not encrypted and contains personal financial data. Copy it to a separate, private location (for example, an encrypted external drive or a private backup service); never commit or publicly upload it. The app does not send backups anywhere automatically.
+The project has two entry points:
 
-To restore, first create an empty `expenses` table and an empty `monthly_income` table in the target database, configure the app to connect to it, and run:
+| Use | Entry point | Dependencies |
+| --- | --- | --- |
+| Desktop app | `python app.py` | PySide6 and Matplotlib |
+| CLI | `python main.py` | Python standard library only |
 
-~~~powershell
-python data_backup.py restore .\backups\expense-tracker-YYYYMMDD-HHMMSS.json
-~~~
+### Run the CLI
 
-Restore validates the backup and refuses to run if either table already has records; this prevents an accidental overwrite. For a fresh restore database, create the tables using the schema in `expenses.sql` and `income.sql`. If you import `expenses.sql`, remove its sample `INSERT` section first so the target table is empty. To update an existing installation, back it up first, then apply `income.sql` only if the monthly income table is missing. The app code itself needs no schema migration for the Dari calendar.
+Python 3.10 or later is required. The CLI and SQLite storage use only the Python standard library.
 
-## Monthly income and balance
+```powershell
+git clone https://github.com/HomafarSharifi/expense-tracker.git
+cd expense-tracker
+python main.py --help
+python main.py add 125.50 2026-10-21 Groceries "Weekly food"
+python main.py income 42000 2026-10 Salary
+python main.py summary --month 2026-10
+python main.py list --page 1 --limit 20 --sort recent
+```
 
-Choose a month on the Overview tab, then add salary or any other income source in the Income tab. Add separate entries for multiple sources; the app sums them automatically. The remaining amount is monthly income minus expenses recorded during that calendar month. If no income is recorded, the app treats income as zero and prompts you to add it. The Analytics tab lets you switch the monthly chart between total spending, spending by category, and income-versus-spending. Months are shown in chronological order.
+`--db path\to\file.sqlite3` selects a database file for scripts and isolated testing. Without it, the CLI uses the same local user profile database as the desktop app.
 
-## Advanced settings
+### Run the desktop app from source
 
-Open **Advanced settings** in the sidebar to review the active currency and non-secret database connection details, see the connection status, and create a local JSON backup. Passwords are never displayed. The backup contains private, unencrypted financial data; keep it somewhere secure and outside Git. Configuration examples in the panel show where database settings belong and how to change the display currency. The UI stacks cards and controls on narrow screens and keeps tabs horizontally scrollable on phones.
+```powershell
+py -3.11 -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+python app.py
+```
 
-## Language
+### Test and build
 
-Use the **Language** selector in the sidebar to switch between English and Dari (دری), then choose a calendar directly below it. Both languages offer Gregorian and Afghan Solar Hijri dates, using the same year/month/day selectors for full dates. Overview and monthly income intentionally ask only for a month, so those controls omit the day. Solar Hijri uses Afghan month names: حمل، ثور، جوزا، سرطان، اسد، سنبله، میزان، عقرب، قوس، جدی، دلو، حوت. Date entry, expense history, date-range filters, income months, monthly summaries, and analytics follow the selected calendar. Switching calendars carries selected dates into the equivalent date in the other calendar. The app converts selected dates to Gregorian dates for storage, so existing expense records and database schemas need no migration. Dari keeps the right-to-left layout and Vazir font. The displayed clock and default dates come from the computer running the app; enable automatic time synchronization in that computer's operating system to keep it aligned with internet time. User-created category names, income sources, and expense descriptions remain as entered.
+```powershell
+python -m unittest discover -s tests -v
+```
 
-## Screenshots for GitHub
+To build the Windows application folder, run PowerShell on Windows and install [Inno Setup](https://jrsoftware.org/isinfo.php) if you also want to create the installer:
 
-For a polished project page, capture the Overview, Analytics, and Manage expenses tabs with sample data. Save them in a screenshots/ folder and embed them here with relative image paths. Use fictional sample records and hide connection details.
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass
+.\build_windows.ps1
+```
 
-## Ready-to-use checklist
+Then open `installer\ExpenseTracker.iss` in Inno Setup and compile it. The resulting installer is written to `release\`. GitHub Actions also builds a Windows setup package when a version tag such as `v2.0.0` is published.
 
-- [ ] Install Python dependencies and start MySQL/MariaDB.
-- [ ] Create the database and tables, then run `income.sql`.
-- [ ] Copy `.streamlit/secrets.toml.example` to `.streamlit/secrets.toml` and set a password.
-- [ ] Start the app and confirm expenses, income, monthly balance, edits, deletions, filters, charts, and both calendars.
-- [ ] Create a backup and keep a copy in a private location outside the project folder.
-- [ ] Capture screenshots with fictional data before publishing.
+### Data and privacy notes
+
+- The database is stored at `%LOCALAPPDATA%\ExpenseTracker\expenses.sqlite3` by default. The CLI and desktop app use the same data.
+- Nothing is sent to a server, and there is no analytics or telemetry.
+- Database and JSON backup files are **not encrypted by the app**. Anyone with access to your Windows account may be able to read them. Use a protected Windows account and device encryption such as BitLocker where available; store backups privately.
+- CSV exports neutralize spreadsheet formula text. PDF and CSV files are created only when you choose an export location.
+- Backups can contain sensitive financial details. Restore validates the file and refuses to overwrite a non-empty profile.
+- This is a portfolio project and is not financial, tax, or banking software. Keep an independent backup of important records.
+
+The Dari interface bundles [Vazirmatn](https://github.com/rastikerdar/vazirmatn), licensed under the [SIL Open Font License 1.1](assets/fonts/OFL.txt). The main application source is licensed under MIT.
+
+### Project layout
+
+```text
+app.py                    Desktop application entry point
+main.py                   CLI entry point
+expense_tracker/storage.py SQLite schema, validation, data access, backup/restore
+expense_tracker/desktop.py PySide6 interface, charts, print and export controls
+expense_tracker/cli.py     Command-line workflows
+jalali_calendar.py        Afghan Solar Hijri conversion helpers
+tests/                    Automated storage, migration, reports, calendar, and UI checks
+installer/                Inno Setup definition for the Windows installer
+```
+
+### Contributing and feedback
+
+Bug reports and practical feedback are welcome through [GitHub Issues](https://github.com/HomafarSharifi/expense-tracker/issues). Please do not attach a real database or backup file; use fictional sample data when reporting a problem.
+
+---
+
+<div align="center">
+
+Built as a portfolio project for people who want a clear, local way to track everyday money.
+
+</div>

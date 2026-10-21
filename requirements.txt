@@ -1,4 +1,6 @@
-mysql-connector-python>=8.0
-pandas>=2.0
-streamlit>=1.50
-matplotlib>=3.7
+# Desktop UI, charts, Dari shaping, and local printing.
+# The CLI and data layer use Python's standard library only.
+PySide6-Essentials>=6.8,<7
+matplotlib>=3.8,<4
+arabic-reshaper>=3.0,<4
+python-bidi>=0.6,<1

@@ -1,0 +1,31 @@
+name: Build Windows release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+      - name: Build desktop files
+        shell: pwsh
+        run: .\build_windows.ps1
+      - name: Compile installer
+        shell: pwsh
+        run: '& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer\ExpenseTracker.iss'
+      - name: Publish installer to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*.exe
+          generate_release_notes: true
