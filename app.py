@@ -1,13 +1,15 @@
+import base64
+import html
 import os
 from datetime import date, datetime, timedelta
 from decimal import Decimal
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 
 from database_errors import database_error_help
 from data_backup import backup_database
-from database import get_public_connection_settings
 from jalali_calendar import (
     AFGHAN_MONTHS,
     calendar_date_to_gregorian,
@@ -34,6 +36,7 @@ from expenses import (
 )
 
 CURRENCY = os.getenv("EXPENSE_CURRENCY", "AFN").upper()
+LOGO_PATH = Path(__file__).resolve().parent / "assets" / "expense-tracker-logo.svg"
 NEW_CATEGORY = "Create a new category..."
 LANGUAGE_OPTIONS = ["English", "دری"]
 CATEGORY_TRANSLATIONS = {
@@ -71,6 +74,7 @@ TRANSLATIONS = {
     "Gregorian": "میلادی",
     "Afghan Solar Hijri": "هجری خورشیدی افغانستان",
     "Current system date and time: {date} · {time}": "تاریخ و زمان سیستم: {date} · {time}",
+    "System time: {date} · {time}": "زمان سیستم: {date} · {time}",
     "The app uses the system clock of the computer running it. Turn on automatic time synchronization in system settings to keep it aligned with internet time.": "برنامه از ساعت سیستم کمپیوتر اجراکنندهٔ خود استفاده می‌کند. برای هماهنگی با زمان اینترنت، همگام‌سازی خودکار ساعت را در تنظیمات سیستم روشن کنید.",
     "January": "جنوری", "February": "فبروری", "March": "مارچ", "April": "اپریل",
     "May": "می", "June": "جون", "July": "جولای", "August": "اگست",
@@ -92,6 +96,7 @@ TRANSLATIONS = {
     "Local data backup": "نسخهٔ پشتیبان محلی",
     "A backup contains private financial records and is not encrypted. Keep it in a secure location.": "نسخهٔ پشتیبان شامل اطلاعات مالی خصوصی و رمزگذاری‌نشده است. آن را در جای امن نگهداری کنید.",
     "Create backup": "ساخت نسخهٔ پشتیبان",
+    "Download backup": "بارگیری نسخهٔ پشتیبان",
     "Backup created: {filename}": "نسخهٔ پشتیبان ساخته شد: {filename}",
     "Backup failed. Check the database connection and try again.": "ساخت نسخهٔ پشتیبان انجام نشد. اتصال پایگاه داده را بررسی و دوباره تلاش کنید.",
     "Configuration help": "راهنمای تنظیمات",
@@ -248,6 +253,16 @@ def sync_language_widget_state():
                 st.session_state[current_key] = category_option_label(
                     category_option_value(previous_value)
                 )
+    # Month names are formatted by the active language, so use fresh widget IDs
+    # and carry their numeric selection over when the language changes.
+    for name in (
+        "quick_date", "overview_month", "filter_start_date", "filter_end_date",
+        "income_month", "add_date", "update_date",
+    ):
+        previous_key = f"{name}_month_{previous_suffix}"
+        current_key = f"{name}_month_{current_suffix}"
+        if previous_key in st.session_state:
+            st.session_state[current_key] = st.session_state[previous_key]
     st.session_state["_widget_language"] = current_language
 
 
@@ -312,7 +327,7 @@ def sync_calendar_widget_state():
     ):
         if old_calendar == "Gregorian":
             year = st.session_state.get(f"{key}_year")
-            month = st.session_state.get(f"{key}_month")
+            month = st.session_state.get(language_widget_key(f"{key}_month"))
             day = st.session_state.get(f"{key}_day")
             try:
                 selected = calendar_date_to_gregorian(
@@ -327,12 +342,12 @@ def sync_calendar_widget_state():
                     selected = datetime.now().astimezone().date()
             solar = to_jalali(selected)
             st.session_state[f"{key}_year"] = solar.year
-            st.session_state[f"{key}_month"] = solar.month
+            st.session_state[language_widget_key(f"{key}_month")] = solar.month
             if not month_only:
                 st.session_state[f"{key}_day"] = solar.day
         else:
             year = st.session_state.get(f"{key}_year")
-            month = st.session_state.get(f"{key}_month")
+            month = st.session_state.get(language_widget_key(f"{key}_month"))
             day = 1 if month_only else st.session_state.get(f"{key}_day")
             try:
                 gregorian = calendar_date_to_gregorian(
@@ -343,7 +358,7 @@ def sync_calendar_widget_state():
                 gregorian = datetime.now().astimezone().date()
             if gregorian:
                 st.session_state[f"{key}_year"] = gregorian.year
-                st.session_state[f"{key}_month"] = gregorian.month
+                st.session_state[language_widget_key(f"{key}_month")] = gregorian.month
                 if not month_only:
                     st.session_state[f"{key}_day"] = gregorian.day
                 st.session_state[key] = gregorian
@@ -351,7 +366,7 @@ def sync_calendar_widget_state():
 
 st.set_page_config(
     page_title=t("Expense Tracker"),
-    page_icon="💰",
+    page_icon=str(LOGO_PATH),
     layout="wide",
     # Streamlit can collapse the navigation drawer automatically on narrow screens.
     initial_sidebar_state="auto",
@@ -361,6 +376,24 @@ st.markdown(
     """
     <style>
     .block-container { max-width: 1480px; padding-top: 1.75rem; padding-bottom: 3rem; }
+    .app-brand { display:flex; align-items:center; gap:.85rem; margin:0 0 .35rem; min-width:0; }
+    .app-brand img { width:48px; height:48px; flex:0 0 48px; }
+    .app-brand h1 { margin:0; min-width:0; font-size:2.35rem; line-height:1.2; overflow-wrap:anywhere; }
+    .stApp input, .stApp textarea, .stApp [data-baseweb="select"],
+    .stApp [data-testid="stNumberInput"] { width:100%; min-width:0; max-width:100%; box-sizing:border-box; }
+    .stApp [data-baseweb="select"] [role="combobox"],
+    .stApp [data-testid="stWidgetLabel"] { min-width:0; overflow-wrap:anywhere; }
+    [data-testid="stSidebar"] [data-testid="stSelectbox"],
+    [data-testid="stSidebar"] [data-testid="stTextInput"],
+    [data-testid="stSidebar"] [data-testid="stNumberInput"],
+    [data-testid="stSidebar"] [data-testid="stDateInput"],
+    [data-testid="stSidebar"] [data-testid="stDownloadButton"],
+    [data-testid="stSidebar"] [data-testid="stButton"] { width:100%; min-width:0; }
+    [data-testid="stSidebar"] [data-baseweb="select"],
+    [data-testid="stSidebar"] input,
+    [data-testid="stSidebar"] [role="combobox"] { width:100%; min-width:0; max-width:100%; }
+    [data-testid="stSidebar"] [data-baseweb="select"] [role="combobox"] { white-space:normal; overflow-wrap:anywhere; }
+    [data-testid="stSidebar"] [data-testid="stWidgetLabel"] { overflow-wrap:anywhere; }
     [data-testid="stMetric"] {
         background: linear-gradient(135deg, rgba(37,99,235,.10), rgba(16,185,129,.08));
         border: 1px solid rgba(100,116,139,.18);
@@ -417,6 +450,9 @@ st.markdown(
         [data-testid="stDataFrame"] { max-width: 100%; overflow-x: auto; }
         div[data-testid="stForm"] { padding: .75rem; }
         div.stButton > button, div.stFormSubmitButton > button { width: 100%; }
+        .app-brand { gap:.6rem; }
+        .app-brand img { width:40px; height:40px; flex-basis:40px; }
+        .app-brand h1 { font-size:1.65rem !important; }
     }
     div[class*="st-key-update_expense_action"] button {
         background: #2563eb !important; border-color: #2563eb !important; color: #fff !important;
@@ -468,11 +504,10 @@ system_date = (
     else system_now.strftime("%Y-%m-%d")
 )
 st.sidebar.caption(
-    t("Current system date and time: {date} · {time}").format(
+    t("System time: {date} · {time}").format(
         date=system_date, time=system_now.strftime("%H:%M %Z").strip()
     )
 )
-st.sidebar.caption(t("The app uses the system clock of the computer running it. Turn on automatic time synchronization in system settings to keep it aligned with internet time."))
 sync_language_widget_state()
 if st.session_state.get("language") == "دری":
     st.markdown(
@@ -544,12 +579,16 @@ def month_label(value):
     if uses_jalali_calendar():
         return f"{AFGHAN_MONTHS[month - 1]} {year}"
     parsed = datetime.strptime(str(value), "%Y-%m")
+    if st.session_state.get("language", "English") == "دری":
+        return f"{t(parsed.strftime('%B'))} {year}"
     return parsed.strftime("%b %Y")
 
 
 def format_month(value, format_string="%B %Y"):
     if uses_jalali_calendar():
         return format_jalali_month(value)
+    if st.session_state.get("language", "English") == "دری":
+        return f"{t(value.strftime('%B'))} {value.year}"
     return value.strftime(format_string)
 
 
@@ -562,7 +601,7 @@ def app_date_input(label, value, key, help=None, month_only=False):
     is_jalali = uses_jalali_calendar()
     selected = to_jalali(value) if is_jalali else value
     columns = st.columns([2, 3] if month_only else [2, 3, 2])
-    year_key, month_key = f"{key}_year", f"{key}_month"
+    year_key, month_key = f"{key}_year", language_widget_key(f"{key}_month")
     years = list(range(selected.year - 10, selected.year + 11))
     year = int(columns[0].selectbox(
         t("Year"), years, index=years.index(selected.year), key=year_key
@@ -705,7 +744,12 @@ def save_quick_expense():
         st.session_state.quick_reason = ""
 
 
-st.title("💰 " + t("Personal Expense Tracker"))
+logo_data = base64.b64encode(LOGO_PATH.read_bytes()).decode("ascii")
+st.markdown(
+    f'<div class="app-brand"><img src="data:image/svg+xml;base64,{logo_data}" '
+    f'alt=""><h1>{html.escape(t("Personal Expense Tracker"))}</h1></div>',
+    unsafe_allow_html=True,
+)
 st.caption(t("A clear view of where your money goes."))
 
 data_error = None
@@ -755,9 +799,7 @@ if data_error:
     st.caption(f"{t('Diagnostic')}: {data_error[1]}")
 
 with st.sidebar:
-    with st.expander(t("Quick add"), expanded=False):
-        st.caption(t("Capture an expense without leaving your current view."))
-        st.caption(t("Choose a category. The extra field appears only when you create a new category."))
+    with st.expander(t("Quick add"), expanded=False, icon=":material/add_circle:"):
         # Put the common path first so quick add doesn't start in category-creation mode.
         category_options = saved_categories + [NEW_CATEGORY]
         quick_category_label = st.selectbox(
@@ -797,51 +839,42 @@ with st.sidebar:
             else:
                 st.error(st.session_state.quick_message)
     st.divider()
-    st.caption(t("Currency display: {currency}").format(currency=CURRENCY))
-    with st.expander(t("Advanced settings"), expanded=False):
-        st.markdown("#### " + t("Display and database settings"))
-        st.metric(t("Current currency"), CURRENCY)
-        st.caption(t("Change it with the EXPENSE_CURRENCY environment variable."))
-        st.markdown("##### " + t("Database connection"))
-        if data_error:
-            st.error(t("Not connected"))
-            if st.button(t("Retry database connection"), key="retry_database_connection"):
-                st.rerun()
-        else:
-            st.success(t("Connected"))
-        connection_settings = get_public_connection_settings()
-        setting_columns = st.columns(4)
-        for column, label, setting in zip(
-            setting_columns,
-            ("Host", "Port", "Database", "Account"),
-            ("host", "port", "database", "user"),
-        ):
-            column.metric(t(label), str(connection_settings[setting]))
-        st.caption(t("The password is hidden. Edit .streamlit/secrets.toml to change connection settings."))
-        st.markdown("##### " + t("Local data backup"))
+    with st.expander(
+        t("Advanced settings"),
+        expanded=False,
+        icon=":material/backup:",
+        key="advanced_settings",
+    ):
         st.caption(t("A backup contains private financial records and is not encrypted. Keep it in a secure location."))
-        if st.button(t("Create backup"), key="create_local_backup"):
+        if st.button(t("Create backup"), key="create_local_backup", icon=":material/save:"):
             try:
                 backup_path = backup_database()
+                st.session_state["created_backup_name"] = backup_path.name
+                st.session_state["created_backup_data"] = backup_path.read_bytes()
                 st.success(t("Backup created: {filename}").format(filename=backup_path.name))
             except Exception as error:
+                st.session_state.pop("created_backup_name", None)
+                st.session_state.pop("created_backup_data", None)
                 st.error(t("Backup failed. Check the database connection and try again."))
                 st.caption(f"{t('Diagnostic')}: {type(error).__name__}")
-        with st.expander(t("Configuration help"), expanded=False):
-            st.caption(t("Database settings are read from environment variables first, then from .streamlit/secrets.toml."))
-            st.code(
-                '# .streamlit/secrets.toml — never share your actual password\n'
-                'EXPENSE_DB_HOST = "localhost"\nEXPENSE_DB_PORT = "3306"\n'
-                'EXPENSE_DB_USER = "expense_app"\n'
-                'EXPENSE_DB_PASSWORD = "your-local-password"\n'
-                'EXPENSE_DB_NAME = "expense_tracker"',
-                language="toml",
+        if st.session_state.get("created_backup_data"):
+            st.download_button(
+                t("Download backup"),
+                data=st.session_state["created_backup_data"],
+                file_name=st.session_state["created_backup_name"],
+                mime="application/json",
+                key="download_created_backup",
+                icon=":material/download:",
+                width="stretch",
             )
-            st.caption(t("Currency display can be changed with EXPENSE_CURRENCY in the system environment."))
-            st.code('$env:EXPENSE_CURRENCY = "AFN"', language="powershell")
 
 overview_tab, analytics_tab, income_tab, manage_tab = st.tabs(
-    [t("Overview"), t("Analytics"), t("Income"), t("Manage expenses")]
+    [
+        ":material/dashboard: " + t("Overview"),
+        ":material/query_stats: " + t("Analytics"),
+        ":material/payments: " + t("Income"),
+        ":material/receipt_long: " + t("Manage expenses"),
+    ]
 )
 
 with overview_tab:
@@ -924,7 +957,7 @@ with overview_tab:
     if visible_expenses:
         st.dataframe(
             table_rows(visible_expenses),
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
             height=420,
             column_config={
@@ -1044,7 +1077,7 @@ with analytics_tab:
             with st.expander(t("View expenses in this period")):
                 st.dataframe(
                     table_rows(range_expenses),
-                    use_container_width=True,
+                    width="stretch",
                     hide_index=True,
                     column_config={
                         t("Amount"): st.column_config.NumberColumn(
@@ -1095,12 +1128,14 @@ with income_tab:
     with st.form("add_income_form"):
         income_source = st.text_input(t("Source"), max_chars=80, placeholder=t("e.g. Salary, freelance work"))
         income_amount = st.number_input(t("Amount"), min_value=0.01, step=1.0, format="%.2f", key="income_amount")
-        income_submitted = st.form_submit_button(t("Add income"), type="primary")
+        income_submitted = st.form_submit_button(
+            t("Add income"), type="primary", icon=":material/add_circle:"
+        )
     if income_submitted:
         if not validate_income(income_amount, income_month, income_source, exact=is_jalali):
             st.error(t("Enter a positive amount and an income source of 1–80 characters."))
         elif add_monthly_income(income_amount, income_month, income_source, exact=is_jalali):
-            st.toast(t("Income added successfully."), icon="✅")
+            st.toast(t("Income added successfully."), icon=":material/check_circle:")
             st.rerun()
         else:
             st.error(t("Could not save income. Check the database connection and confirm income.sql has been applied."))
@@ -1114,14 +1149,14 @@ with income_tab:
         )),
     )
     if month_income_rows:
-        st.dataframe([{t("Source"): row[1], t("Amount"): float(row[2])} for row in month_income_rows], use_container_width=True, hide_index=True, column_config={t("Amount"): st.column_config.NumberColumn(t("Amount"), format=f"{CURRENCY} %,.2f")})
+        st.dataframe([{t("Source"): row[1], t("Amount"): float(row[2])} for row in month_income_rows], width="stretch", hide_index=True, column_config={t("Amount"): st.column_config.NumberColumn(t("Amount"), format=f"{CURRENCY} %,.2f")})
         income_options = {f"{row[1]} · {money(row[2])}": row[0] for row in month_income_rows}
         income_to_delete = st.selectbox(t("Remove an income entry"), list(income_options), key="income_delete_select")
         confirm_income_delete = st.checkbox(t("I understand this permanently deletes the selected income."), key="confirm_income_delete")
         with st.container(key="delete_income_action"):
-            if st.button(t("Delete income"), disabled=not confirm_income_delete, key="delete_income_button"):
+            if st.button(t("Delete income"), disabled=not confirm_income_delete, key="delete_income_button", icon=":material/delete:"):
                 if delete_monthly_income(income_options[income_to_delete]):
-                    st.toast(t("Income entry deleted."), icon="🗑️")
+                    st.toast(t("Income entry deleted."), icon=":material/delete:")
                     st.rerun()
                 else:
                     st.error(t("Could not delete income. Refresh and try again."))
@@ -1131,7 +1166,11 @@ with income_tab:
 with manage_tab:
     st.caption(t("Manage your expenses here. Add a new record, update an existing one, or delete it after confirmation."))
     add_tab, update_tab, delete_tab = st.tabs(
-        [t("Add expense"), t("Update expense"), t("Delete expense")]
+        [
+            ":material/add_circle: " + t("Add expense"),
+            ":material/edit: " + t("Update expense"),
+            ":material/delete: " + t("Delete expense"),
+        ]
     )
 
     with add_tab:
@@ -1168,7 +1207,9 @@ with manage_tab:
                 placeholder=t("e.g. Groceries"),
                 key="add_reason",
             )
-            submitted = st.form_submit_button(t("Save expense"), type="primary")
+            submitted = st.form_submit_button(
+                t("Save expense"), type="primary", icon=":material/add_circle:"
+            )
         if submitted:
             category = (
                 custom_category.strip()
@@ -1183,7 +1224,7 @@ with manage_tab:
                 reason,
                 category,
             ):
-                st.toast(t("Expense added successfully."), icon="✅")
+                st.toast(t("Expense added successfully."), icon=":material/check_circle:")
                 st.rerun()
             else:
                 st.error(t("Could not save the expense. Check your database connection."))
@@ -1241,7 +1282,7 @@ with manage_tab:
                 )
                 with st.container(key="update_expense_action"):
                     update_submitted = st.form_submit_button(
-                        t("Save changes"), type="primary"
+                        t("Save changes"), type="primary", icon=":material/save:"
                     )
             if update_submitted:
                 new_category = (
@@ -1258,7 +1299,7 @@ with manage_tab:
                     new_reason,
                     new_category,
                 ):
-                    st.toast(t("Expense updated successfully."), icon="✅")
+                    st.toast(t("Expense updated successfully."), icon=":material/check_circle:")
                     st.rerun()
                 else:
                     st.error(t("Could not update the expense. Refresh and try again."))
@@ -1286,9 +1327,10 @@ with manage_tab:
                     type="primary",
                     disabled=not confirm_delete,
                     key="delete_expense_button",
+                    icon=":material/delete:",
                 ):
                     if delete_expense(delete_options[selected_delete_label]):
-                        st.toast(t("Expense deleted."), icon="🗑️")
+                        st.toast(t("Expense deleted."), icon=":material/delete:")
                         st.rerun()
                     else:
                         st.error(t("Could not delete the expense. Refresh and try again."))

@@ -36,7 +36,7 @@ A Streamlit app for recording expenses, managing categories, and exploring spend
 4. Install the packages listed above directly from this README:
 
    ~~~powershell
-   python -m pip install "streamlit>=1.30" "pandas>=2.0" "mysql-connector-python>=8.0" "matplotlib>=3.7"
+   python -m pip install "streamlit>=1.50" "pandas>=2.0" "mysql-connector-python>=8.0" "matplotlib>=3.7"
    ~~~
 
 5. Create the database and expense table. For a fresh install using the MySQL command-line client, run these commands from the project folder. The sample SQL inserts demo expenses; remove the INSERT section from a copy if you want an empty table:
