@@ -99,7 +99,7 @@ python main.py list --page 1 --limit 20 --sort recent
 ### Run the desktop app from source
 
 ```powershell
-py -3.11 -m venv .venv
+py -3.14 -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
 python app.py
@@ -111,6 +111,8 @@ python app.py
 python -m unittest discover -s tests -v
 ```
 
+GitHub Actions also builds and launches a test Windows bundle on every push and pull request. A version tag additionally compiles the setup package, installs it in a temporary CI folder, launches the installed app against temporary data, and uninstalls it before publishing the release.
+
 To build the Windows application folder, run PowerShell on Windows and install [Inno Setup](https://jrsoftware.org/isinfo.php) if you also want to create the installer:
 
 ```powershell
@@ -118,7 +120,7 @@ Set-ExecutionPolicy -Scope Process Bypass
 .\build_windows.ps1
 ```
 
-Then open `installer\ExpenseTracker.iss` in Inno Setup and compile it. The resulting installer is written to `release\`. GitHub Actions also builds a Windows setup package when a version tag such as `v2.0.0` is published.
+Then open `installer\ExpenseTracker.iss` in Inno Setup and compile it. The resulting installer is written to `release\`. The tag must match the version in `pyproject.toml`, for example `v2.0.0`.
 
 ### Data and privacy notes
 

@@ -1,13 +1,19 @@
 #define AppName "Expense Tracker"
+#ifndef AppVersion
 #define AppVersion "2.0.0"
+#endif
 #define AppPublisher "Homafar Sharifi"
 #define AppExeName "ExpenseTracker.exe"
 
 [Setup]
 AppId={{F1E03671-4242-4CF4-86D3-036888C808A1}
 AppName={#AppName}
-AppVersion={#AppVersion}
 AppPublisher={#AppPublisher}
+AppVersion={#AppVersion}
+VersionInfoVersion={#AppVersion}
+VersionInfoCompany={#AppPublisher}
+VersionInfoDescription={#AppName} Windows installer
+VersionInfoProductName={#AppName}
 DefaultDirName={localappdata}\Programs\Expense Tracker
 DefaultGroupName={#AppName}
 PrivilegesRequired=lowest

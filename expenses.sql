@@ -1,4 +1,0 @@
--- This SQL file belongs to the retired MySQL version and is not used by v2.
--- The application creates and migrates its local SQLite database automatically.
--- To move old records, create a JSON backup with the previous version and use
--- Settings > Restore backup in the Windows desktop app, or `python main.py restore`.

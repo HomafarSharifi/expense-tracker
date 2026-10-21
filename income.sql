@@ -1,3 +1,0 @@
--- This SQL file belongs to the retired MySQL version and is not used by v2.
--- Monthly income is created automatically in the local SQLite database.
--- Use the old application's JSON backup to migrate existing income records.

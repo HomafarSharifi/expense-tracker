@@ -15,7 +15,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.14"
       - name: Install Inno Setup
         run: choco install innosetup -y --no-progress
       - name: Build desktop files
@@ -23,7 +23,33 @@ jobs:
         run: .\build_windows.ps1
       - name: Compile installer
         shell: pwsh
-        run: '& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer\ExpenseTracker.iss'
+        run: |
+          $Version = $env:GITHUB_REF_NAME.TrimStart('v')
+          if ($Version -notmatch '^\d+\.\d+\.\d+$') {
+            throw "Release tags must use the vMAJOR.MINOR.PATCH format, for example v2.0.0."
+          }
+          $ProjectVersionLine = Select-String -Path pyproject.toml -Pattern '^version\s*=\s*"([^"]+)"' | Select-Object -First 1
+          if (-not $ProjectVersionLine -or $ProjectVersionLine.Matches[0].Groups[1].Value -ne $Version) {
+            throw "The release tag v$Version must match the version in pyproject.toml."
+          }
+          $Compiler = Get-Command ISCC.exe -ErrorAction SilentlyContinue
+          if (-not $Compiler) {
+            $Candidates = @(
+              "${env:ProgramFiles(x86)}\Inno Setup 7\ISCC.exe",
+              "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+              "$env:ProgramFiles\Inno Setup 7\ISCC.exe",
+              "$env:ProgramFiles\Inno Setup 6\ISCC.exe"
+            )
+            $CompilerPath = $Candidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+          } else {
+            $CompilerPath = $Compiler.Source
+          }
+          if (-not $CompilerPath) { throw "Could not find ISCC.exe from Inno Setup 6 or 7." }
+          & $CompilerPath "/DAppVersion=$Version" installer\ExpenseTracker.iss
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed with exit code $LASTEXITCODE." }
+      - name: Install and smoke-test setup package
+        shell: pwsh
+        run: .\tools\smoke_windows_installer.ps1
       - name: Publish installer to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
